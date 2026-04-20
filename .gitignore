@@ -13,10 +13,10 @@ venv/
 # Environment / secrets
 .env
 *.env
-profiles.yml
-likeness.md
-PLAN.md
-Status.md
+# profiles.yml
+# likeness.md
+# PLAN.md
+# Status.md
 
 # IDE
 .vscode/
