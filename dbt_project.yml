@@ -1,16 +1,9 @@
 
-# Name your project! Project names should contain only lowercase characters
-# and underscores. A good package name should reflect your organization's
-# name or the intended use of these models
 name: 'propellingtech_tpch'
 version: '1.0.0'
 
-# This setting configures which "profile" dbt uses for this project.
 profile: 'propellingtech_tpch'
 
-# These configurations specify where dbt should look for different types of files.
-# The `model-paths` config, for example, states that models in this project can be
-# found in the "models/" directory. You probably won't need to change these!
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]
@@ -22,15 +15,54 @@ clean-targets:         # directories to be removed by `dbt clean`
   - "target"
   - "dbt_packages"
 
-
+vars:
+  source_system: 'SNOWFLAKE_SAMPLE_DATA.TPCH_SF1'
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
 
-# In this example config, we tell dbt to build all models in the example/
-# directory as views. These settings can be overridden in the individual model
-# files using the `{{ config(...) }}` macro.
+
 models:
   propellingtech_tpch:
-    # Config indicated by + and applies to all files under models/example/
-    example:
-      +materialized: view
+    bronze:
+      +materialized: table
+      +schema: bronze
+      +tags: ['bronze']
+      +meta:
+        layer: 'bronze'
+        purpose: 'Source-faithful raw ingestion with ingestion metadata'
+    silver:
+      +materialized: table
+      +schema: silver
+      +tags: ['silver']
+      +meta:
+        layer: 'silver'
+        purpose: 'Cleansed, conformed, business-rule-applied entities'
+    gold:
+      +schema: gold
+      +tags: ['gold']
+      +meta:
+        layer: 'gold'
+        purpose: 'Consumer-ready dimensional model for Commercial Finance'
+
+
+# Snapshots: SCD Type 2 lives in the silver schema alongside conformed entities.
+snapshots:
+  propellingtech_tpch:
+    +target_schema: silver
+    +strategy: timestamp
+    +invalidate_hard_deletes: true
+
+
+
+# Seeds: dim_date lives in silver since it's a service table, but also will be exposed as a view in the gold schema to be consumed by business users.
+
+seeds:
+  propellingtech_tpch:
+    +schema: silver
+    +quote_columns: false
+
+# Global test severity: warnings don't fail the build, errors do.
+
+tests:
+  +store_failures: true
+  +severity: error

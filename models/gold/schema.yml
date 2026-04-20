@@ -1,0 +1,5 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: "Gold-layer view that exposes the silver seed dim_date for business consumption."
