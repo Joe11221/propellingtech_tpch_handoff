@@ -1,6 +1,30 @@
-
+# dbt
 target/
 dbt_packages/
 logs/
+.user.yml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment / secrets
+.env
+*.env
+profiles.yml
+likeness.md
+PLAN.md
+Status.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# dbt run artifacts
+dbt.log
 dbt_internal_packages/
-.venv
+

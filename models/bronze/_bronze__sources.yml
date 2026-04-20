@@ -1,0 +1,191 @@
+version: 2
+
+# =============================================================================
+# Source Definition: TPC-H SF1
+# =============================================================================
+# TPC-H is Snowflake's standard benchmark dataset modeling a wholesale supplier
+# business. It's freely available under SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.
+#
+# Freshness is declared aspirationally — TPC-H is a static snapshot so the
+# thresholds will never trigger. This is a deliberate demonstration of the
+# production pattern. In a real engagement, thresholds would be calibrated
+# to the upstream SLA. See ADR-05.
+#
+# Note: generic test arguments use the `arguments:` nested syntax per the
+# dbt 1.10+ convention (forward-compatible with dbt Fusion).
+# =============================================================================
+
+sources:
+  - name: tpch_sf1
+    description: >
+      TPC-H SF1 benchmark dataset modeling a wholesale supplier business.
+      Source of truth for all Bronze ingestion. Never queried directly by
+      downstream models — Bronze provides the immutable, metadata-enriched
+      entry point for the Medallion flow.
+    database: snowflake_sample_data
+    schema: tpch_sf1
+
+    # Aspirational freshness — pattern demonstrated, thresholds TBD per engagement.
+    # Note: TPC-H does not expose a loaded_at column natively, so these would
+    # need to be removed or adjusted against a real source.
+    # freshness:
+    #   warn_after:  { count: 24, period: hour }
+    #   error_after: { count: 48, period: hour }
+    # loaded_at_field: _ingested_at
+
+    tables:
+      - name: customer
+        description: "Customer master — one row per customer account."
+        columns:
+          - name: c_custkey
+            description: "Natural key — customer ID (integer)."
+            tests:
+              - unique
+              - not_null
+          - name: c_name
+            description: "Customer display name."
+          - name: c_address
+            description: "Customer street address."
+          - name: c_nationkey
+            description: "FK to nation."
+          - name: c_phone
+            description: "Customer phone (fixed-format string)."
+          - name: c_acctbal
+            description: "Account balance at source snapshot time. SCD-tracked in Silver."
+          - name: c_mktsegment
+            description: "Market segment (BUILDING / AUTOMOBILE / MACHINERY / HOUSEHOLD / FURNITURE). SCD-tracked in Silver."
+          - name: c_comment
+            description: "Free-text comment."
+
+      - name: orders
+        description: "Orders header — one row per order."
+        columns:
+          - name: o_orderkey
+            description: "Natural key — order ID."
+            tests:
+              - unique
+              - not_null
+          - name: o_custkey
+            description: "FK to customer."
+            tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('tpch_sf1', 'customer')
+                    field: c_custkey
+          - name: o_orderstatus
+            description: "Order status (F=finished, O=open, P=partial)."
+          - name: o_totalprice
+            description: "Order-level total price."
+          - name: o_orderdate
+            description: "Date order was placed."
+          - name: o_orderpriority
+            description: "Priority tier (1-URGENT through 5-LOW)."
+          - name: o_clerk
+            description: "Clerk who took the order."
+          - name: o_shippriority
+            description: "Shipping priority integer."
+          - name: o_comment
+            description: "Free-text comment."
+
+      - name: lineitem
+        description: "Order line items — primary fact source. One row per order line."
+        columns:
+          - name: l_orderkey
+            description: "FK to orders."
+            tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('tpch_sf1', 'orders')
+                    field: o_orderkey
+          - name: l_partkey
+            description: "FK to part."
+          - name: l_suppkey
+            description: "FK to supplier."
+          - name: l_linenumber
+            description: "Line number within order. (orderkey, linenumber) is the natural composite key."
+          - name: l_quantity
+            description: "Quantity ordered."
+          - name: l_extendedprice
+            description: "Extended price (quantity × part price). Pre-discount."
+          - name: l_discount
+            description: "Discount rate (0.00 to 0.10 in TPC-H)."
+          - name: l_tax
+            description: "Tax rate."
+          - name: l_returnflag
+            description: "Return status flag (R/A/N)."
+          - name: l_linestatus
+            description: "Line status (O/F)."
+          - name: l_shipdate
+            description: "Ship date."
+          - name: l_commitdate
+            description: "Committed ship date."
+          - name: l_receiptdate
+            description: "Receipt date."
+          - name: l_shipinstruct
+            description: "Shipping instructions."
+          - name: l_shipmode
+            description: "Shipping mode."
+          - name: l_comment
+            description: "Free-text comment."
+
+      - name: part
+        description: "Part catalog."
+        columns:
+          - name: p_partkey
+            tests:
+              - unique
+              - not_null
+          - name: p_name
+          - name: p_mfgr
+          - name: p_brand
+          - name: p_type
+          - name: p_size
+          - name: p_container
+          - name: p_retailprice
+          - name: p_comment
+
+      - name: supplier
+        description: "Supplier master."
+        columns:
+          - name: s_suppkey
+            tests:
+              - unique
+              - not_null
+          - name: s_name
+          - name: s_address
+          - name: s_nationkey
+          - name: s_phone
+          - name: s_acctbal
+          - name: s_comment
+
+      - name: partsupp
+        description: "Part-supplier relationship — availability and supply cost per (part, supplier) pair. Promoted to Silver for margin calculation — see ADR-06."
+        columns:
+          - name: ps_partkey
+          - name: ps_suppkey
+          - name: ps_availqty
+          - name: ps_supplycost
+          - name: ps_comment
+
+      - name: nation
+        description: "Nation reference."
+        columns:
+          - name: n_nationkey
+            tests:
+              - unique
+              - not_null
+          - name: n_name
+          - name: n_regionkey
+          - name: n_comment
+
+      - name: region
+        description: "Region reference."
+        columns:
+          - name: r_regionkey
+            tests:
+              - unique
+              - not_null
+          - name: r_name
+          - name: r_comment

@@ -1,0 +1,146 @@
+version: 2
+
+# =============================================================================
+# Bronze Layer Schema — schema: bronze_tpch
+# =============================================================================
+# Bronze models preserve source fidelity. Tests here are minimal and focused
+# on surfacing upstream data-integrity issues — NOT on enforcing downstream
+# business rules. That's Silver's job.
+#
+# Naming convention (ADR-07 + ADR-11):
+#   - Files and model names are prefixed with the source system identifier
+#     (e.g., tpch_*). This preserves uniqueness across multi-source Bronze
+#     and keeps lineage unambiguous when CRM / IQVIA / SAP sources are added.
+#   - Layer identity is carried by the schema (bronze_<source>), not by a
+#     layer prefix like `br_`.
+#
+# The three metadata columns (_ingested_at, _source_system, _batch_id) are
+# present on every Bronze model via the add_ingestion_metadata() macro.
+#
+# Note on YAML syntax: generic test arguments are nested under `arguments:`
+# per the dbt 1.10+ convention. This is forward-compatible with dbt Fusion.
+# =============================================================================
+
+models:
+
+  # ---------------------------------------------------------------------------
+  - name: tpch_customer
+    description: "Bronze ingestion of TPC-H customer. Source-faithful pass-through with ingestion metadata."
+    config:
+      tags: ['bronze', 'customer']
+    columns:
+      - name: c_custkey
+        description: "Customer natural key. Unique by source contract."
+        tests:
+          - unique
+          - not_null
+      - name: c_mktsegment
+        description: "Market segment. Enumerated by source; SCD-tracked downstream."
+      - name: _ingested_at
+        description: "Timestamp at which this row was loaded into Bronze."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Logical name of the source system."
+        tests:
+          - not_null
+      - name: _batch_id
+        description: "dbt invocation_id for this load. Enables run-level traceability."
+        tests:
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: tpch_orders
+    description: "Bronze ingestion of TPC-H orders. Source-faithful pass-through with ingestion metadata."
+    config:
+      tags: ['bronze', 'orders']
+    columns:
+      - name: o_orderkey
+        description: "Order natural key. Unique by source contract."
+        tests:
+          - unique
+          - not_null
+      - name: o_custkey
+        description: "FK to tpch_customer.c_custkey."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('tpch_customer')
+                field: c_custkey
+
+  # ---------------------------------------------------------------------------
+  - name: tpch_lineitem
+    description: "Bronze ingestion of TPC-H lineitem. Primary fact source. Grain: (orderkey, linenumber). ~6M rows at SF1."
+    config:
+      tags: ['bronze', 'lineitem', 'tier_1']
+    columns:
+      - name: l_orderkey
+        description: "FK to tpch_orders.o_orderkey."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('tpch_orders')
+                field: o_orderkey
+      - name: l_linenumber
+        description: "Line number within order. (l_orderkey, l_linenumber) is the natural composite key."
+        tests:
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: tpch_part
+    description: "Bronze ingestion of TPC-H part."
+    config:
+      tags: ['bronze', 'part']
+    columns:
+      - name: p_partkey
+        tests:
+          - unique
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: tpch_supplier
+    description: "Bronze ingestion of TPC-H supplier."
+    config:
+      tags: ['bronze', 'supplier']
+    columns:
+      - name: s_suppkey
+        tests:
+          - unique
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: tpch_partsupp
+    description: "Bronze ingestion of TPC-H partsupp. Carries ps_supplycost — the only source of unit cost in TPC-H, required for margin calculation. See ADR-06."
+    config:
+      tags: ['bronze', 'partsupp']
+    columns:
+      - name: ps_partkey
+        tests:
+          - not_null
+      - name: ps_suppkey
+        tests:
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: tpch_nation
+    description: "Bronze ingestion of TPC-H nation reference."
+    config:
+      tags: ['bronze', 'nation', 'reference']
+    columns:
+      - name: n_nationkey
+        tests:
+          - unique
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: tpch_region
+    description: "Bronze ingestion of TPC-H region reference."
+    config:
+      tags: ['bronze', 'region', 'reference']
+    columns:
+      - name: r_regionkey
+        tests:
+          - unique
+          - not_null

@@ -1,0 +1,278 @@
+version: 2
+
+# =============================================================================
+# Gold Layer Schema
+# =============================================================================
+# Progressive testing principle: Gold tests focus on analytical correctness and
+# metric stability — not hygiene (already enforced at Silver) and not source
+# conformance (already enforced at Bronze).
+#
+# What we assert here:
+#   - Dimension PKs are unique and not null
+#   - Fact → dimension referential integrity
+#   - Positive-value tests on financial measures that must never go negative
+#     (gross_margin is deliberately NOT tested as positive — negative margin is
+#      an analytically meaningful signal, not a defect)
+#   - A reconciliation singular test lives at tests/singular/
+# =============================================================================
+
+models:
+
+  # ---------------------------------------------------------------------------
+  - name: dim_date
+    description: >
+      Conformed date dimension. Grain: one row per calendar day, 1990–2000.
+      Generated via dbt_utils.date_spine.
+    config:
+      tags: ['gold', 'dimension', 'conformed']
+    columns:
+      - name: date_key
+        description: "YYYYMMDD integer surrogate. Primary key."
+        tests:
+          - unique
+          - not_null
+      - name: date_value
+        tests:
+          - unique
+          - not_null
+      - name: year_number
+        tests:
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: dim_geography
+    description: "Conformed nation + region dimension. Shared across ship and bill geography."
+    config:
+      tags: ['gold', 'dimension', 'conformed']
+    columns:
+      - name: geography_key
+        tests:
+          - unique
+          - not_null
+      - name: nation_id
+        tests:
+          - unique
+          - not_null
+      - name: nation_name
+        tests:
+          - not_null
+      - name: region_id
+        tests:
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: dim_customer
+    description: >
+      SCD Type 2 customer dimension. customer_key is unique per VERSION;
+      customer_id is the stable natural key. Use valid_from/valid_to for
+      point-in-time joins from the fact table.
+    config:
+      tags: ['gold', 'dimension', 'scd2', 'customer']
+    columns:
+      - name: customer_key
+        description: "Surrogate key per SCD2 version. Primary key."
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Natural key. NOT unique across versions."
+        tests:
+          - not_null
+      - name: market_segment
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY']
+      - name: customer_tier
+        description: "Gold-derived: quartile on current account_balance."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Strategic', 'Growth', 'Maintain', 'Watch']
+      - name: nation_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_geography')
+                field: nation_id
+      - name: valid_from
+        tests:
+          - not_null
+      - name: is_current
+        tests:
+          - not_null
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - customer_id
+              - is_current
+          config:
+            where: "is_current = true"
+
+  # ---------------------------------------------------------------------------
+  - name: dim_supplier
+    description: "SCD Type 1 supplier dimension. Denormalized with nation + region."
+    config:
+      tags: ['gold', 'dimension', 'scd1', 'supplier']
+    columns:
+      - name: supplier_key
+        tests:
+          - unique
+          - not_null
+      - name: supplier_id
+        tests:
+          - unique
+          - not_null
+      - name: nation_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_geography')
+                field: nation_id
+
+  # ---------------------------------------------------------------------------
+  - name: dim_part
+    description: "SCD Type 1 part dimension."
+    config:
+      tags: ['gold', 'dimension', 'scd1', 'part']
+    columns:
+      - name: part_key
+        tests:
+          - unique
+          - not_null
+      - name: part_id
+        tests:
+          - unique
+          - not_null
+      - name: brand
+        tests:
+          - not_null
+      - name: retail_price
+        tests:
+          - positive_value
+
+  # ---------------------------------------------------------------------------
+  - name: fct_sales_lineitem
+    description: >
+      Primary fact — one row per order lineitem. All measures additive except
+      discount_rate, tax_rate, and margin_rate (use weighted averages in BI).
+      gross_margin is Gold-computed per ADR-02; net_revenue is carried through
+      from Silver.
+    config:
+      tags: ['gold', 'fact', 'tier_1']
+    columns:
+      - name: sales_lineitem_key
+        description: "Surrogate PK. Deterministic hash of (order_id, line_number)."
+        tests:
+          - unique
+          - not_null
+
+      # Dimension FKs — referential integrity is the analytical contract
+      - name: customer_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: supplier_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_supplier')
+                field: supplier_key
+      - name: part_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_part')
+                field: part_key
+      - name: ship_geography_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_geography')
+                field: geography_key
+      - name: bill_geography_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_geography')
+                field: geography_key
+      - name: order_date_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+
+      # Additive measures — must be positive
+      - name: quantity
+        tests:
+          - positive_value
+      - name: extended_price
+        tests:
+          - positive_value
+      - name: net_revenue
+        tests:
+          - positive_value
+      - name: supply_cost
+        tests:
+          - positive_value:
+              arguments:
+                allow_zero: true
+
+      # gross_margin is deliberately NOT tested as positive — negative margin
+      # is analytically meaningful (customer is being sold to at a loss) and
+      # should show up in the dashboard, not fail the build.
+
+    tests:
+      # Composite uniqueness at the grain — defense in depth alongside the
+      # surrogate unique test.
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - order_id
+              - line_number
+
+      # Business rule: gross_margin = net_revenue - supply_cost, within tolerance
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "abs(gross_margin - (net_revenue - supply_cost)) < 0.01"
+
+  # ---------------------------------------------------------------------------
+  - name: rpt_customer_profitability_90d
+    description: >
+      Consumption view. Customer-level rollup over the trailing 90 days of
+      fact data — the primary artifact Sarah would hit from Power BI.
+    config:
+      tags: ['gold', 'rpt', 'customer_profitability']
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  - name: rpt_segment_margin_concentration
+    description: >
+      Consumption view. Market-segment Pareto lens — answers
+      "where does margin actually concentrate?"
+    config:
+      tags: ['gold', 'rpt', 'segment_concentration']
+    columns:
+      - name: market_segment
+        tests:
+          - unique
+          - not_null

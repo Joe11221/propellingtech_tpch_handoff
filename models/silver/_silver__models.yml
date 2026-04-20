@@ -1,0 +1,326 @@
+version: 2
+
+# =============================================================================
+# Silver Layer Schema — domain-segmented schemas (ADR-11)
+# =============================================================================
+# Silver is partitioned into domain-scoped schemas so grants and ownership
+# follow the business function that owns the data:
+#
+#   silver_customer     → customer (+ snap_customer_scd2)
+#   silver_sales        → orders, lineitem
+#   silver_purchasing   → part, supplier, partsupp
+#   silver_geography    → nation, region
+#
+# Model names are the plain entity name (e.g., `customer`, `lineitem`). Layer
+# identity is carried by the schema; the domain is carried by the subfolder
+# and schema suffix. See ADR-07 and ADR-11.
+#
+# Progressive testing principle: Silver tests are substantially denser than
+# Bronze tests. Bronze surfaces source defects; Silver enforces the conformed
+# contract that Gold depends on.
+#
+# Test categories used here:
+#   - unique / not_null on natural keys
+#   - relationships for referential integrity (including cross-schema FKs)
+#   - accepted_values for enumerated columns (when the enum is material)
+#   - positive_value (custom generic) on financial measures
+#   - dbt_utils.expression_is_true for range checks
+#   - dbt_utils.unique_combination_of_columns for composite keys
+#
+# Note on YAML syntax: generic test arguments are nested under `arguments:`
+# per the dbt 1.10+ convention. This is forward-compatible with dbt Fusion.
+# =============================================================================
+
+models:
+
+  # ---------------------------------------------------------------------------
+  # silver_customer
+  # ---------------------------------------------------------------------------
+  - name: customer
+    description: >
+      Silver customer entity (silver_customer.customer). Reads from
+      snap_customer_scd2, exposing SCD2 versions with valid_from / valid_to.
+      Use is_current = true to get current-state; join on valid_from /
+      valid_to for point-in-time.
+    config:
+      tags: ['silver', 'customer']
+    columns:
+      - name: customer_id
+        description: "Natural key. NOT unique across SCD versions — unique within (customer_id, is_current=true)."
+        tests:
+          - not_null
+      - name: scd_version_id
+        description: "Surrogate SCD version key. Unique per row."
+        tests:
+          - unique
+          - not_null
+      - name: market_segment
+        description: "Customer market segment. SCD-tracked."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY']
+      - name: nation_id
+        description: "FK to silver_geography.nation."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('nation')
+                field: nation_id
+      - name: valid_from
+        tests:
+          - not_null
+      - name: is_current
+        tests:
+          - not_null
+
+    tests:
+      # Unique on (customer_id, is_current=true) — there must be exactly
+      # one current version of each customer.
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - customer_id
+              - is_current
+          config:
+            where: "is_current = true"
+
+  # ---------------------------------------------------------------------------
+  # silver_sales
+  # ---------------------------------------------------------------------------
+  - name: orders
+    description: "Silver orders entity (silver_sales.orders). Clean, typed, with derived date parts."
+    config:
+      tags: ['silver', 'sales', 'orders']
+    columns:
+      - name: order_id
+        description: "Natural key."
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "FK to silver_customer.customer."
+        tests:
+          - not_null
+          # Relationship is to the CURRENT version of customer.
+          # Historical integrity is preserved through the SCD2 valid_from/to join.
+          - relationships:
+              arguments:
+                to: ref('customer')
+                field: customer_id
+              config:
+                where: "customer_id is not null"
+      - name: order_status_code
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['F', 'O', 'P']
+      - name: order_total_price
+        tests:
+          - positive_value
+      - name: order_date
+        tests:
+          - not_null
+      - name: order_priority
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['1-URGENT', '2-HIGH', '3-MEDIUM', '4-NOT SPECIFIED', '5-LOW']
+
+  - name: lineitem
+    description: >
+      Silver lineitem (silver_sales.lineitem). Grain: one row per
+      (order_id, line_number). Carries Silver-computed net_revenue,
+      discount_amount, tax_amount. Primary input to fct_sales_lineitem (Gold).
+    config:
+      tags: ['silver', 'sales', 'lineitem', 'tier_1']
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('orders')
+                field: order_id
+      - name: line_number
+        tests:
+          - not_null
+      - name: part_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('part')
+                field: part_id
+      - name: supplier_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('supplier')
+                field: supplier_id
+      - name: quantity
+        description: "Quantity ordered. Must be positive."
+        tests:
+          - positive_value
+      - name: extended_price
+        description: "Pre-discount line revenue. Must be positive."
+        tests:
+          - positive_value
+      - name: discount_rate
+        description: "Discount rate. TPC-H contract: [0, 0.10]."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "between 0 and 1"
+      - name: tax_rate
+        description: "Tax rate. TPC-H contract: [0, 0.08]."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "between 0 and 1"
+      - name: net_revenue
+        description: "Silver-computed: extended_price * (1 - discount_rate)."
+        tests:
+          - positive_value
+      - name: discount_amount
+        description: "Silver-computed: extended_price * discount_rate."
+        tests:
+          - positive_value:
+              arguments:
+                allow_zero: true
+      - name: tax_amount
+        description: "Silver-computed: extended_price * tax_rate."
+        tests:
+          - positive_value:
+              arguments:
+                allow_zero: true
+
+    tests:
+      # Composite uniqueness at the lineitem grain
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - order_id
+              - line_number
+      # Business rule: net_revenue must equal extended_price - discount_amount
+      # within floating-point tolerance. Catches computation drift if the
+      # formula ever gets re-implemented inconsistently.
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "abs(net_revenue - (extended_price - discount_amount)) < 0.01"
+          config:
+            severity: warn
+
+  # ---------------------------------------------------------------------------
+  # silver_purchasing
+  # ---------------------------------------------------------------------------
+  - name: part
+    description: "Silver part (silver_purchasing.part). Clean names, standardized brand casing."
+    config:
+      tags: ['silver', 'purchasing', 'part']
+    columns:
+      - name: part_id
+        tests:
+          - unique
+          - not_null
+      - name: brand
+        tests:
+          - not_null
+      - name: retail_price
+        tests:
+          - positive_value
+
+  - name: supplier
+    description: "Silver supplier (silver_purchasing.supplier). Clean names, nation FK preserved for Gold denormalization."
+    config:
+      tags: ['silver', 'purchasing', 'supplier']
+    columns:
+      - name: supplier_id
+        tests:
+          - unique
+          - not_null
+      - name: nation_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('nation')
+                field: nation_id
+
+  - name: partsupp
+    description: >
+      Silver partsupp (silver_purchasing.partsupp). Carries
+      supply_cost_per_unit — the only source of unit cost in TPC-H, required
+      for Gold margin calculation.
+    config:
+      tags: ['silver', 'purchasing', 'partsupp']
+    columns:
+      - name: part_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('part')
+                field: part_id
+      - name: supplier_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('supplier')
+                field: supplier_id
+      - name: supply_cost_per_unit
+        tests:
+          - positive_value:
+              arguments:
+                allow_zero: true
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - part_id
+              - supplier_id
+
+  # ---------------------------------------------------------------------------
+  # silver_geography
+  # ---------------------------------------------------------------------------
+  - name: nation
+    description: "Silver nation reference (silver_geography.nation)."
+    config:
+      tags: ['silver', 'geography', 'nation', 'reference']
+    columns:
+      - name: nation_id
+        tests:
+          - unique
+          - not_null
+      - name: nation_name
+        tests:
+          - unique
+          - not_null
+      - name: region_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('region')
+                field: region_id
+
+  - name: region
+    description: "Silver region reference (silver_geography.region)."
+    config:
+      tags: ['silver', 'geography', 'region', 'reference']
+    columns:
+      - name: region_id
+        tests:
+          - unique
+          - not_null
+      - name: region_name
+        tests:
+          - unique
+          - not_null
