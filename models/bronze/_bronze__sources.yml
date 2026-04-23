@@ -22,6 +22,8 @@ sources:
       Source of truth for all Bronze ingestion. Never queried directly by
       downstream models — Bronze provides the immutable, metadata-enriched
       entry point for the Medallion flow.
+    config:
+      tags: ['source', 'tpch', 'bronze']
     database: snowflake_sample_data
     schema: tpch_sf1
 

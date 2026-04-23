@@ -1,0 +1,50 @@
+version: 2
+
+# SCD2 snapshot documentation (ADR-04). Consumed by silver_customer.customer.
+
+snapshots:
+
+  - name: snap_customer_scd2
+    description: >
+      SCD Type 2 history of TPC-H customers from `tpch_customer`. Uses `strategy: check`
+      on market segment, account balance, nation, and address because TPC-H has no
+      reliable `updated_at` for a timestamp strategy. When any checked column changes,
+      dbt closes the prior version and opens a new row; `invalidate_hard_deletes: true`
+      expires rows removed upstream. The snapshot materializes in `silver_customer`
+      alongside the domain's conformed models (see `dbt_project.yml` snapshots config).
+
+      Downstream, `customer` in Silver reads this snapshot and surfaces `valid_from` /
+      `valid_to`, `is_current`, and `scd_version_id` for as-of joins into Gold
+      `dim_customer` and `fct_sales_lineitem`.
+    config:
+      tags:
+        - silver
+        - customer
+        - scd2
+        - snapshot
+        - 'AD Group: Customer'
+    columns:
+      - name: c_custkey
+        description: "Customer natural key from TPC-H; `unique_key` for the snapshot."
+      - name: c_name
+        description: "Customer display name at the version effective window."
+      - name: c_address
+        description: "Street address; one of the `check_cols` that opens a new SCD version on change."
+      - name: c_nationkey
+        description: "Nation FK; included in `check_cols` for SCD detection."
+      - name: c_phone
+        description: "Customer phone (source format)."
+      - name: c_acctbal
+        description: "Account balance; included in `check_cols` (SCD-tracked for profitability context)."
+      - name: c_mktsegment
+        description: "Market segment; included in `check_cols` — segment changes drive new versions."
+      - name: c_comment
+        description: "Free-text comment from source (not a check column; carried for completeness)."
+      - name: dbt_scd_id
+        description: "dbt-generated surrogate for this snapshot row version."
+      - name: dbt_updated_at
+        description: "Timestamp when dbt last wrote or validated this row in the snapshot table."
+      - name: dbt_valid_from
+        description: "Start of the effective window for this version of the customer record."
+      - name: dbt_valid_to
+        description: "End of the effective window; null means the row is the latest open version."
