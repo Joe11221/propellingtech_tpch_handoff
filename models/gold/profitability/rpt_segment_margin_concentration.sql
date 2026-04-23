@@ -1,6 +1,6 @@
--- rpt_segment_margin_concentration — one row per market_segment; share of
--- revenue and margin plus a simple concentration ratio (margin share / revenue share).
--- Ratio >1: more margin than revenue share; <1: the opposite.
+-- rpt_segment_margin_concentration — one row per (order_year_month, market_segment);
+-- share of revenue and margin within that month plus concentration ratio
+-- (margin share / revenue share). Ratio >1: more margin than revenue share; <1: the opposite.
 
 {{
     config(
@@ -12,6 +12,7 @@
 with fact_joined as (
 
     select
+        f.order_year_month_key,
         dc.market_segment,
         f.net_revenue,
         f.gross_margin,

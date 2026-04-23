@@ -133,6 +133,7 @@ final as (
         bill_geography_key,
 
         -- Date keys (YYYYMMDD integer form — matches dim_date.date_key)
+        cast(to_char(order_date,   'YYYYMM') as int)         as order_year_month_key,
         cast(to_char(order_date,   'YYYYMMDD') as int)      as order_date_key,
         cast(to_char(ship_date,    'YYYYMMDD') as int)      as ship_date_key,
         cast(to_char(commit_date,  'YYYYMMDD') as int)      as commit_date_key,

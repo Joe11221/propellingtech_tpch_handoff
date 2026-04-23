@@ -206,6 +206,10 @@ models:
               arguments:
                 to: ref('dim_date')
                 field: date_key
+      - name: order_year_month_key
+        description: "Order calendar month in YYYYMM integer form; aligns with dim_date.year_month_key."
+        tests:
+          - not_null
 
       # Additive measures (tested non-negative)
       - name: quantity
@@ -264,11 +268,19 @@ models:
   # ---------------------------------------------------------------------------
   - name: rpt_segment_margin_concentration
     description: >
-      View: segment-level margin rollup for concentration / Pareto-style charts.
+      View: segment-level margin rollup by order month for concentration / Pareto-style charts.
     config:
       tags: ['gold', 'rpt', 'segment_concentration']
     columns:
+      - name: order_year_month_key
+        tests:
+          - not_null
       - name: market_segment
         tests:
-          - unique
           - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - order_year_month_key
+              - market_segment
