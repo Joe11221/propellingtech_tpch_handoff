@@ -2,17 +2,8 @@
 -- order days in the fact (anchor = max order_date; static TPC-H, not wall-clock).
 --
 -- Grain is one row per customer_id (natural key) — NOT per SCD2 version. This
--- is deliberate: Sarah's dashboard is "how is customer X doing right now",
--- which is a customer-grain question. SCD2 point-in-time attribution is still
--- available at the fact grain for any deeper analysis.
---
--- Descriptive attributes (name, segment, tier, geography) come from the
--- LATEST SCD2 version of each customer — current if they still exist,
--- otherwise the most recent historical version. This means customers who
--- were hard-deleted (invalidate_hard_deletes=true) after transacting in
--- the window still appear, flagged `is_lapsed = true` and carrying
--- `customer_tier = 'Lapsed'` (assigned upstream in dim_customer). Sarah
--- can see "recent activity from customers we've since lost" without
+-- is deliberate.
+-- can see recent activity from customers we've since lost without
 -- duplicating the active-customer grain.
 -- ADR-02 / ADR-04 on why tier + segment current-ness is a Gold concern;
 -- ADR-09 on the view materialization choice.

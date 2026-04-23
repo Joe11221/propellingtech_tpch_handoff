@@ -95,9 +95,9 @@ with_supply_cost as (
 
 ),
 
--- ---------------------------------------------------------------------------
+
 -- Geography resolution — ship (supplier nation) and bill (customer nation)
--- ---------------------------------------------------------------------------
+
 with_geography as (
 
     select
