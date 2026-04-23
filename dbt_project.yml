@@ -91,7 +91,9 @@ models:
 snapshots:
   propellingtech_tpch:
     +target_schema: silver_customer
-    +strategy: timestamp
+    # `check` matches snap_customer_scd2 — TPC-H has no updated_at column,
+    # so timestamp strategy would have nothing to anchor on.
+    +strategy: check
     +invalidate_hard_deletes: true
 
 # ---------------------------------------------------------------------------

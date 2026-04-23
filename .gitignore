@@ -18,6 +18,10 @@ venv/
 # PLAN.md
 # Status.md
 
+# Personal study / working docs (do NOT ship with submission)
+CHEATSHEET.md
+savedchat.md
+
 # IDE
 .vscode/
 .idea/

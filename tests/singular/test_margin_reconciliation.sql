@@ -5,16 +5,9 @@
     and report disagree, something’s wrong in the join or the measure.
 #}
 
-with fact_total as (
-
-    select sum(gross_margin) as total_gross_margin
-    from {{ ref('fct_sales_lineitem') }}
-
-),
-
 -- Rebuild the same window the rpt view uses so the reconciliation is
 -- apples-to-apples. Anchored on max(order_date) in the fact, not current_date.
-window_anchor as (
+with window_anchor as (
 
     select
         max(order_date)                      as window_end,
