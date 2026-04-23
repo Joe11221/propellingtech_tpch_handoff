@@ -27,26 +27,32 @@ with fact_joined as (
 by_segment as (
 
     select
+        order_year_month_key,
         market_segment,
-        sum(extended_price)             as total_gross_revenue,
-        sum(discount_amount)             as total_discount,
-        sum(net_revenue)                 as total_net_revenue,
-        sum(gross_margin)                as total_gross_margin
+        sum(extended_price)              as total_gross_revenue,
+        sum(discount_amount)              as total_discount,
+        sum(net_revenue)                  as total_net_revenue,
+        sum(gross_margin)                 as total_gross_margin
     from fact_joined
-    group by market_segment
+    group by
+        order_year_month_key,
+        market_segment
 
 ),
 
 totals as (
 
     select
-        sum(total_net_revenue)           as grand_net_revenue,
-        sum(total_gross_margin)          as grand_gross_margin
+        order_year_month_key,
+        sum(total_net_revenue)            as grand_net_revenue,
+        sum(total_gross_margin)           as grand_gross_margin
     from by_segment
+    group by order_year_month_key
 
 )
 
 select
+    bs.order_year_month_key,
     bs.market_segment,
 
     bs.total_gross_revenue,
@@ -72,5 +78,8 @@ select
     end                                  as margin_concentration_index
 
 from by_segment          as bs
-cross join totals        as t
-order by bs.total_gross_margin desc
+inner join totals        as t
+        on bs.order_year_month_key = t.order_year_month_key
+order by
+    bs.order_year_month_key,
+    bs.total_gross_margin desc

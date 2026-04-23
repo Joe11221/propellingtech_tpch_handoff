@@ -56,21 +56,26 @@ enriched as (
         -- --------------------------------------------------------------
 
         -- Discount amount: what the customer saved vs. list.
-        (extended_price * discount_rate)::number(12,2)
+        (extended_price * discount_rate)::number(12,4)
                                                     as discount_amount,
 
         -- Net revenue: what the customer actually paid, pre-tax.
         -- This is the canonical revenue number for all downstream
         -- analytics. Do not recompute it elsewhere.
-        (extended_price * (1 - discount_rate))::number(12,2)
+        (extended_price * (1 - discount_rate))::number(12,4)
                                                     as net_revenue,
 
         -- Tax amount: informational; not added to net_revenue.
-        (extended_price * tax_rate)::number(12,2)
+        (extended_price * tax_rate)::number(12,4)
                                                     as tax_amount
 
     from source
 
 )
 
-select * from enriched
+select
+    * exclude (discount_amount, net_revenue, tax_amount),
+    round(discount_amount, 2)::number(12, 2) as discount_amount,
+    round(net_revenue, 2)::number(12, 2)     as net_revenue,
+    round(tax_amount, 2)::number(12, 2)     as tax_amount
+from enriched

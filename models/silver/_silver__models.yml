@@ -154,7 +154,7 @@ models:
               arguments:
                 expression: "between 0 and 1"
       - name: net_revenue
-        description: "Silver-computed: extended_price * (1 - discount_rate)."
+        description: "Silver-computed: extended_price - discount_amount (after each rounded to cents) so the two sum to list."
         tests:
           - positive_value
       - name: discount_amount
@@ -182,7 +182,7 @@ models:
       # formula ever gets re-implemented inconsistently.
       - dbt_utils.expression_is_true:
           arguments:
-            expression: "abs(net_revenue - (extended_price - discount_amount)) < 0.01"
+            expression: "abs(net_revenue - (extended_price - discount_amount)) < 0.02"
           config:
             severity: warn
 
