@@ -1,9 +1,5 @@
--- =============================================================================
--- tpch_orders  (bronze_tpch.tpch_orders)
--- =============================================================================
--- Source-faithful ingestion of TPC-H orders table.
--- See ADR-05. Schema segmentation convention: ADR-11.
--- =============================================================================
+-- tpch_orders → bronze_tpch
+-- TPC-H `orders` — parent of `lineitem`; `o_custkey` points at customer. ADR-05, ADR-11.
 
 {{
     config(

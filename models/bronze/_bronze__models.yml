@@ -1,31 +1,14 @@
 version: 2
 
-# =============================================================================
-# Bronze Layer Schema — schema: bronze_tpch
-# =============================================================================
-# Bronze models preserve source fidelity. Tests here are minimal and focused
-# on surfacing upstream data-integrity issues — NOT on enforcing downstream
-# business rules. That's Silver's job.
-#
-# Naming convention (ADR-07 + ADR-11):
-#   - Files and model names are prefixed with the source system identifier
-#     (e.g., tpch_*). This preserves uniqueness across multi-source Bronze
-#     and keeps lineage unambiguous when CRM / IQVIA / SAP sources are added.
-#   - Layer identity is carried by the schema (bronze_<source>), not by a
-#     layer prefix like `br_`.
-#
-# The three metadata columns (_ingested_at, _source_system, _batch_id) are
-# present on every Bronze model via the add_ingestion_metadata() macro.
-#
-# Note on YAML syntax: generic test arguments are nested under `arguments:`
-# per the dbt 1.10+ convention. This is forward-compatible with dbt Fusion.
-# =============================================================================
+# Bronze (schema bronze_tpch): source shapes kept as-is, light tests, metadata from
+# add_ingestion_metadata(). Tables are tpch_* so extra sources can sit beside this one
+# (ADR-07, ADR-11). Generic test args use `arguments:` (dbt 1.10+).
 
 models:
 
   # ---------------------------------------------------------------------------
   - name: tpch_customer
-    description: "Bronze ingestion of TPC-H customer. Source-faithful pass-through with ingestion metadata."
+    description: "TPC-H `customer` as landed in Snowflake, plus _ingested_at, _source_system, _batch_id."
     config:
       tags: ['bronze', 'customer']
     columns:
@@ -45,13 +28,13 @@ models:
         tests:
           - not_null
       - name: _batch_id
-        description: "dbt invocation_id for this load. Enables run-level traceability."
+        description: "dbt `invocation_id` for the run that wrote this row."
         tests:
           - not_null
 
   # ---------------------------------------------------------------------------
   - name: tpch_orders
-    description: "Bronze ingestion of TPC-H orders. Source-faithful pass-through with ingestion metadata."
+    description: "TPC-H `orders` — one row per order; keys match lineitem and customer in Silver."
     config:
       tags: ['bronze', 'orders']
     columns:
@@ -71,7 +54,7 @@ models:
 
   # ---------------------------------------------------------------------------
   - name: tpch_lineitem
-    description: "Bronze ingestion of TPC-H lineitem. Primary fact source. Grain: (orderkey, linenumber). ~6M rows at SF1."
+    description: "TPC-H `lineitem` (order, line) grain; ~6M rows at SF1. Main event-level fact upstream."
     config:
       tags: ['bronze', 'lineitem', 'tier_1']
     columns:
@@ -90,7 +73,7 @@ models:
 
   # ---------------------------------------------------------------------------
   - name: tpch_part
-    description: "Bronze ingestion of TPC-H part."
+    description: "TPC-H `part` — part master for purchasing / partsupp joins."
     config:
       tags: ['bronze', 'part']
     columns:
@@ -101,7 +84,7 @@ models:
 
   # ---------------------------------------------------------------------------
   - name: tpch_supplier
-    description: "Bronze ingestion of TPC-H supplier."
+    description: "TPC-H `supplier` with nation key; no extra transforms here."
     config:
       tags: ['bronze', 'supplier']
     columns:
@@ -112,7 +95,7 @@ models:
 
   # ---------------------------------------------------------------------------
   - name: tpch_partsupp
-    description: "Bronze ingestion of TPC-H partsupp. Carries ps_supplycost — the only source of unit cost in TPC-H, required for margin calculation. See ADR-06."
+    description: "TPC-H `partsupp` — `ps_supplycost` is the only per-unit cost TPC-H gives you; needed for margin (ADR-06)."
     config:
       tags: ['bronze', 'partsupp']
     columns:
@@ -125,7 +108,7 @@ models:
 
   # ---------------------------------------------------------------------------
   - name: tpch_nation
-    description: "Bronze ingestion of TPC-H nation reference."
+    description: "TPC-H `nation` reference; pairs with `region` for geography."
     config:
       tags: ['bronze', 'nation', 'reference']
     columns:
@@ -136,7 +119,7 @@ models:
 
   # ---------------------------------------------------------------------------
   - name: tpch_region
-    description: "Bronze ingestion of TPC-H region reference."
+    description: "TPC-H `region` reference, five rows at SF1."
     config:
       tags: ['bronze', 'region', 'reference']
     columns:

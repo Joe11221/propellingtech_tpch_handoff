@@ -1,11 +1,5 @@
--- =============================================================================
--- dim_supplier
--- =============================================================================
--- SCD Type 1 supplier dimension. One row per supplier_id — overwrite on change.
---
--- Denormalized with nation + region for BI ergonomics. See ADR-04 for why
--- supplier is Type 1 and customer is Type 2.
--- =============================================================================
+-- dim_supplier — SCD1, one row per supplier; nation + region on the row for
+-- fewer joins in BI. Rationale for Type 1 vs customer Type 2: ADR-04.
 
 {{
     config(

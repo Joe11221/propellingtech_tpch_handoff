@@ -1,35 +1,8 @@
 version: 2
 
-# =============================================================================
-# Silver Layer Schema — domain-segmented schemas (ADR-11)
-# =============================================================================
-# Silver is partitioned into domain-scoped schemas so grants and ownership
-# follow the business function that owns the data:
-#
-#   silver_customer     → customer (+ snap_customer_scd2)
-#   silver_sales        → orders, lineitem
-#   silver_purchasing   → part, supplier, partsupp
-#   silver_geography    → nation, region
-#
-# Model names are the plain entity name (e.g., `customer`, `lineitem`). Layer
-# identity is carried by the schema; the domain is carried by the subfolder
-# and schema suffix. See ADR-07 and ADR-11.
-#
-# Progressive testing principle: Silver tests are substantially denser than
-# Bronze tests. Bronze surfaces source defects; Silver enforces the conformed
-# contract that Gold depends on.
-#
-# Test categories used here:
-#   - unique / not_null on natural keys
-#   - relationships for referential integrity (including cross-schema FKs)
-#   - accepted_values for enumerated columns (when the enum is material)
-#   - positive_value (custom generic) on financial measures
-#   - dbt_utils.expression_is_true for range checks
-#   - dbt_utils.unique_combination_of_columns for composite keys
-#
-# Note on YAML syntax: generic test arguments are nested under `arguments:`
-# per the dbt 1.10+ convention. This is forward-compatible with dbt Fusion.
-# =============================================================================
+# Silver: one schema per area — customer, sales, purchasing, geography (ADR-11).
+# Models use plain names (`lineitem`, `customer`); the schema name carries the
+# layer. Heavier tests than Bronze. Generic test args: `arguments:` (dbt 1.10+).
 
 models:
 
@@ -38,10 +11,8 @@ models:
   # ---------------------------------------------------------------------------
   - name: customer
     description: >
-      Silver customer entity (silver_customer.customer). Reads from
-      snap_customer_scd2, exposing SCD2 versions with valid_from / valid_to.
-      Use is_current = true to get current-state; join on valid_from /
-      valid_to for point-in-time.
+      `silver_customer.customer` from `snap_customer_scd2` — SCD2 rows with
+      valid_from / valid_to. `is_current = true` for current row; as-of joins use the date range.
     config:
       tags: ['silver', 'customer']
     columns:
@@ -91,7 +62,7 @@ models:
   # silver_sales
   # ---------------------------------------------------------------------------
   - name: orders
-    description: "Silver orders entity (silver_sales.orders). Clean, typed, with derived date parts."
+    description: "silver_sales.orders — types cleaned up, date parts added for join keys."
     config:
       tags: ['silver', 'sales', 'orders']
     columns:
@@ -131,9 +102,8 @@ models:
 
   - name: lineitem
     description: >
-      Silver lineitem (silver_sales.lineitem). Grain: one row per
-      (order_id, line_number). Carries Silver-computed net_revenue,
-      discount_amount, tax_amount. Primary input to fct_sales_lineitem (Gold).
+      `silver_sales.lineitem` at (order_id, line_number) grain. `net_revenue`
+      and discount/tax $ computed here; feeds `fct_sales_lineitem`.
     config:
       tags: ['silver', 'sales', 'lineitem', 'tier_1']
     columns:
@@ -220,7 +190,7 @@ models:
   # silver_purchasing
   # ---------------------------------------------------------------------------
   - name: part
-    description: "Silver part (silver_purchasing.part). Clean names, standardized brand casing."
+    description: "silver_purchasing.part — business-friendly names, brand string normalized."
     config:
       tags: ['silver', 'purchasing', 'part']
     columns:
@@ -236,7 +206,7 @@ models:
           - positive_value
 
   - name: supplier
-    description: "Silver supplier (silver_purchasing.supplier). Clean names, nation FK preserved for Gold denormalization."
+    description: "silver_purchasing.supplier; nation_id kept for dim_supplier in Gold."
     config:
       tags: ['silver', 'purchasing', 'supplier']
     columns:
@@ -254,9 +224,8 @@ models:
 
   - name: partsupp
     description: >
-      Silver partsupp (silver_purchasing.partsupp). Carries
-      supply_cost_per_unit — the only source of unit cost in TPC-H, required
-      for Gold margin calculation.
+      `silver_purchasing.partsupp`. `supply_cost_per_unit` is the per-unit
+      cost TPC-H gives you, used in Gold for margin.
     config:
       tags: ['silver', 'purchasing', 'partsupp']
     columns:
@@ -291,7 +260,7 @@ models:
   # silver_geography
   # ---------------------------------------------------------------------------
   - name: nation
-    description: "Silver nation reference (silver_geography.nation)."
+    description: "silver_geography.nation — small reference table, FK to region."
     config:
       tags: ['silver', 'geography', 'nation', 'reference']
     columns:
@@ -312,7 +281,7 @@ models:
                 field: region_id
 
   - name: region
-    description: "Silver region reference (silver_geography.region)."
+    description: "silver_geography.region — five regions at SF1."
     config:
       tags: ['silver', 'geography', 'region', 'reference']
     columns:

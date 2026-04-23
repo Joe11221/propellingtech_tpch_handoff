@@ -1,33 +1,8 @@
--- =============================================================================
--- fct_sales_lineitem
--- =============================================================================
--- Primary fact table for the Customer Profitability analytical product.
---
--- Grain: one row per (order_id, line_number). This is the atomic commercial
--- event — see ADR-03. Every downstream metric rolls up from here.
---
--- Joins:
---   - customer_key: SCD2 point-in-time lookup. We resolve the customer
---     VERSION that was active when the order was placed so segment /
---     account_balance attribution is historically accurate. This is the
---     reason SCD2 exists on customer (ADR-04).
---   - supplier_key / part_key: SCD1, simple equi-join.
---   - ship_geography_key / bill_geography_key: supplier nation drives ship,
---     customer nation drives bill. Same conformed geography dim for both.
---   - order_date_key / ship_date_key: YYYYMMDD integer → dim_date.
---
--- Gold-computed measures (ADR-02):
---   - supply_cost = supply_cost_per_unit × quantity
---   - gross_margin = net_revenue - supply_cost
---   - margin_rate = gross_margin / nullif(net_revenue, 0)
---
--- Silver-computed measures (carried through unchanged):
---   - extended_price, discount_amount, tax_amount, net_revenue
---
--- Scaling note: at SF10+ this becomes `incremental` keyed on
--- sales_lineitem_key, partitioned on order_date, clustered on customer_key.
--- See ADR-09.
--- =============================================================================
+-- fct_sales_lineitem (gold)
+-- Line-level fact: (order_id, line_number) grain (ADR-03). Dims: SCD2 customer
+-- (as-of order_date), SCD1 part/supplier, geography for ship/bill, date keys.
+-- gross_margin, supply_cost, margin_rate computed here; net_revenue from Silver (ADR-02).
+-- At much larger scale: see incremental/partition note in ADR-09.
 
 {{
     config(

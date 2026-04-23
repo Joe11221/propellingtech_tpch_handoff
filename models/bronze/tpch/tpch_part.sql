@@ -1,8 +1,5 @@
--- =============================================================================
--- tpch_part  (bronze_tpch.tpch_part)
--- =============================================================================
--- Source-faithful ingestion of TPC-H part table.
--- =============================================================================
+-- tpch_part → bronze_tpch
+-- Part master (P_* columns). Used with partsupp and lineitem in Silver/Gold.
 
 {{
     config(

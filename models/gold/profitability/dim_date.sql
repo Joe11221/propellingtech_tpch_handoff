@@ -1,15 +1,5 @@
--- =============================================================================
--- dim_date
--- =============================================================================
--- Conformed date dimension. Generated via dbt_utils.date_spine rather than a
--- CSV seed so the range is driven by code and reproducible.
---
--- Range chosen to bracket TPC-H's order_date domain (1992-01-02 → 1998-08-02)
--- with a generous buffer either side. Grain: one row per calendar day.
---
--- date_key is an integer YYYYMMDD — the canonical integer surrogate that
--- keeps the fact table's date joins fast and readable in BI tools.
--- =============================================================================
+-- dim_date — date spine 1990–2000 (dbt_utils) so the window isn’t a hand-maintained seed.
+-- Covers TPC-H order dates with margin; one row per day; `date_key` = YYYYMMDD int for fact FKs.
 
 {{
     config(

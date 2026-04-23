@@ -1,35 +1,8 @@
 {#
-    snap_customer_scd2
-    ------------------
-    SCD Type 2 snapshot on customer. See ADR-04.
-
-    Strategy choice — check_cols vs timestamp:
-      TPC-H has no natural updated_at column on customer, so `timestamp`
-      strategy isn't directly applicable against the source. We use
-      `check` strategy and watch the columns that actually drive
-      margin attribution:
-        - c_mktsegment  (changes a customer's segment membership)
-        - c_acctbal     (changes a customer's financial standing)
-        - c_nationkey   (changes geographic attribution)
-        - c_address     (address moves — less analytically material but
-                         commonly SCD-tracked in practice)
-
-    Honest caveat: TPC-H is a static snapshot, so this snapshot will
-    only ever see one version of each row. The point of implementing
-    it is to prove the pattern is in place and correctly wired — any
-    real commercial source of customer master data will exhibit
-    drift on these exact columns.
-
-    Output columns added by dbt:
-      dbt_scd_id       - surrogate key for this version
-      dbt_updated_at   - system timestamp the version was observed
-      dbt_valid_from   - version start timestamp
-      dbt_valid_to     - version end timestamp (NULL for current)
-
-    Downstream (dim_customer in Gold) is responsible for:
-      - exposing is_current convenience flag
-      - deriving use-case-specific attributes (customer_tier)
-      - joining nation+region for the denormalized geography view
+    SCD2 snapshot on `tpch_customer` (ADR-04). `check` on segment, balance,
+    nation, address — TPC-H has no updated_at, so not `timestamp` strategy.
+    Data is static; you still get one version per key today. dbt appends
+    dbt_scd_*, dbt_valid_*. Gold `dim_customer` adds is_current, tier, geo.
 #}
 
 {% snapshot snap_customer_scd2 %}

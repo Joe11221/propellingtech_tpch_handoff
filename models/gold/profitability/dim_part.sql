@@ -1,10 +1,5 @@
--- =============================================================================
--- dim_part
--- =============================================================================
--- SCD Type 1 part dimension. Overwrite on change — part master is less
--- analytically material than customer for the profitability use case
--- (see ADR-04).
--- =============================================================================
+-- dim_part — SCD1 part master; overwrites on refresh. SCD2 wasn’t needed for
+-- this use case; see ADR-04.
 
 {{
     config(

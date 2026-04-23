@@ -1,15 +1,6 @@
--- =============================================================================
--- rpt_segment_margin_concentration
--- =============================================================================
--- Consumption-ready view. Answers Sarah's "where does margin actually
--- concentrate?" question — Pareto lens on market segment.
---
--- Grain: one row per market_segment.
--- Columns include share-of-total for revenue and margin, and a simple margin
--- concentration index (segment's margin share ÷ segment's revenue share).
--- A value >1 means the segment punches above its weight on margin; <1 means
--- the segment is a revenue-heavy / margin-light block of the business.
--- =============================================================================
+-- rpt_segment_margin_concentration — one row per market_segment; share of
+-- revenue and margin plus a simple concentration ratio (margin share / revenue share).
+-- Ratio >1: more margin than revenue share; <1: the opposite.
 
 {{
     config(

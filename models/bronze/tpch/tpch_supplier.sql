@@ -1,8 +1,5 @@
--- =============================================================================
--- tpch_supplier  (bronze_tpch.tpch_supplier)
--- =============================================================================
--- Source-faithful ingestion of TPC-H supplier table.
--- =============================================================================
+-- tpch_supplier → bronze_tpch
+-- TPC-H supplier; links to `nation` for geography on the supply side.
 
 {{
     config(

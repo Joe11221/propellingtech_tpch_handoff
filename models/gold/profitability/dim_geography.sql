@@ -1,13 +1,5 @@
--- =============================================================================
--- dim_geography
--- =============================================================================
--- Conformed geography dimension. One row per TPC-H nation, denormalized with
--- its parent region. Used for BOTH customer-ship and supplier-ship geography
--- analytics — centralizing the nation+region rollup here prevents drift.
---
--- Grain: one row per nation_id.
--- SCD strategy: Type 1 (nations/regions don't churn in TPC-H; see ADR-04).
--- =============================================================================
+-- dim_geography — one row per nation, region name rolled up. Same dim for
+-- customer and supplier geographies on the fact. SCD1 (ADR-04); static in practice for TPC-H.
 
 {{
     config(

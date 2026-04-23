@@ -1,10 +1,5 @@
--- =============================================================================
--- tpch_partsupp  (bronze_tpch.tpch_partsupp)
--- =============================================================================
--- Source-faithful ingestion of TPC-H partsupp table (part-supplier availability).
--- Carries ps_supplycost — the only source of per-unit supply cost in TPC-H,
--- required for margin calculation in Gold. See ADR-06.
--- =============================================================================
+-- tpch_partsupp → bronze_tpch
+-- Part–supplier bridge; `ps_supplycost` is the unit cost TPC-H exposes (needed for margin; ADR-06).
 
 {{
     config(

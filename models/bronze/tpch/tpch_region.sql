@@ -1,8 +1,5 @@
--- =============================================================================
--- tpch_region  (bronze_tpch.tpch_region)
--- =============================================================================
--- Source-faithful ingestion of TPC-H region reference table.
--- =============================================================================
+-- tpch_region → bronze_tpch
+-- Five regions at SF1; top of the geography hierarchy under nation.
 
 {{
     config(

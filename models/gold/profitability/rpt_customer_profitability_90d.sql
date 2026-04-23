@@ -1,18 +1,5 @@
--- =============================================================================
--- rpt_customer_profitability_90d
--- =============================================================================
--- Consumption-ready view. This is what Sarah (the VP of Commercial Finance)
--- actually queries in Power BI or Tableau. No further transformations
--- required between this view and a dashboard tile.
---
--- Grain: one row per (customer_id, CURRENT version). Shows the trailing-90-day
--- window ending at the most recent order_date in the fact — TPC-H is static
--- and ends in mid-1998, so anchoring to current_date would return an empty set.
--- In production this would be a rolling window anchored on current_date.
---
--- Materialization: view. Cheap, always fresh, no rebuild cost.
--- See ADR-09.
--- =============================================================================
+-- rpt_customer_profitability_90d — view: customer-level KPIs for the last 90
+-- order days in the fact (anchor = max order_date; static TPC-H, not wall-clock). View for freshness; ADR-09.
 
 {{
     config(

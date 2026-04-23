@@ -1,22 +1,8 @@
 {#
-    test_margin_reconciliation
-    --------------------------
-    Singular test (ADR-08).
-
-    Asserts that total gross_margin at the lineitem (fact) grain reconciles
-    with the sum of per-customer gross_margin in the consumption view,
-    within floating-point tolerance.
-
-    This is the dbt analog of the reconciliation tests I wrote into the
-    Cencora migration-validation framework: if the atomic grain and the
-    rollup disagree, one of them is wrong. The test fails when they
-    disagree by more than a cent across ~6M lineitem rows — which is the
-    right sensitivity: any real double-counting or drop would show up as
-    dollars, not cents.
-
-    Failing this test is a tier-1 incident: it means either the join in
-    the rpt view is lossy, a row is being double-counted, or the measure
-    is being redefined between layers. In production it would page.
+    margin_reconciliation (ADR-08) — sum(gross_margin) on fct_sales_lineitem
+    should match the customer rpt rollup (within a small float tolerance).
+    Same kind of check we used when reconciling migration row totals: if fact
+    and report disagree, something’s wrong in the join or the measure.
 #}
 
 with fact_total as (

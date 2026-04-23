@@ -1,37 +1,6 @@
--- =============================================================================
--- lineitem  (silver_sales.lineitem)
--- =============================================================================
--- Silver lineitem — the keystone Silver model for customer profitability.
---
--- Grain preserved from source: one row per (order_id, line_number). This
--- is the atomic commercial event and MUST NOT be aggregated here. See ADR-03.
---
--- Business rules applied at THIS layer (ADR-02 placement rubric):
---   - net_revenue = extended_price * (1 - discount)
---       Universal definition. Any downstream use case defines revenue-after-
---       discount the same way. Putting this in Silver prevents redefinition
---       risk across analytical products.
---   - discount_amount = extended_price * discount
---       Same reasoning.
---   - tax_amount = extended_price * tax
---       Same reasoning.
---
--- Business rules DEFERRED to Gold:
---   - gross_margin = net_revenue - supply_cost_total
---       Margin definition is use-case-specific. See ADR-02.
---   - customer tier derivation, segment rollups, etc.
---
--- Data quality enforced here:
---   - discount rate in [0, 1]
---   - tax rate in [0, 1]  (TPC-H tax is typically 0.00–0.08)
---   - quantity > 0
---   - extended_price > 0
--- Rows violating these are filtered out and surfaced via a test in the
--- schema YAML; in a production pipeline these would go to a quarantine
--- table (the Cencora pattern).
---
--- See ADR-11 for schema segmentation (this lives in silver_sales).
--- =============================================================================
+-- silver_sales.lineitem — (order_id, line_number) grain (ADR-03). `net_revenue`
+-- and discount/tax $ here; margin uses supply cost in Gold (ADR-02). Ranges
+-- and $ tests in _silver__models.yml.
 
 {{
     config(

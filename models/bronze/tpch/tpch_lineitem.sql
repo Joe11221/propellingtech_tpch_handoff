@@ -1,11 +1,6 @@
--- =============================================================================
--- tpch_lineitem  (bronze_tpch.tpch_lineitem)
--- =============================================================================
--- Source-faithful ingestion of TPC-H lineitem table.
--- This is the primary fact source for fct_sales_lineitem downstream.
--- Grain: one row per (orderkey, linenumber). ~6M rows at SF1.
--- See ADR-05. Schema segmentation convention: ADR-11.
--- =============================================================================
+-- tpch_lineitem → bronze_tpch
+-- Line-level sales; (l_orderkey, l_linenumber) grain, ~6M rows SF1. Feeds the star-schema fact after Silver.
+-- ADR-05, ADR-11.
 
 {{
     config(

@@ -40,7 +40,7 @@ models:
       +tags: ['bronze', 'AD Group: Bronze User']
       +meta:
         layer: 'bronze'
-        purpose: 'Source-faithful raw ingestion with ingestion metadata'
+        purpose: 'Raw TPC-H tables + load metadata'
       tpch:
         +schema: bronze_tpch
         +tags: ['bronze', 'tpch', 'AD Group: tpch_user']
@@ -55,7 +55,7 @@ models:
       +tags: ['silver', 'AD Group: Silver User']
       +meta:
         layer: 'silver'
-        purpose: 'Cleansed, conformed, business-rule-applied entities'
+        purpose: 'Typed entities, business rules, FK checks'
       customer:
         +schema: silver_customer
         +tags: ['silver', 'customer', 'AD Group: Customer']
@@ -79,7 +79,7 @@ models:
       +tags: ['gold', 'AD Group: Gold User']    
       +meta:
         layer: 'gold'
-        purpose: 'Consumer-ready dimensional model for Commercial Finance'
+        purpose: 'Star schema for finance analytics'
       profitability:
         +schema: gold_profitability
         +tags: ['gold', 'profitability', 'AD Group: Profitability']

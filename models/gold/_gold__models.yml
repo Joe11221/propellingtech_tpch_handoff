@@ -1,28 +1,15 @@
 version: 2
 
-# =============================================================================
-# Gold Layer Schema
-# =============================================================================
-# Progressive testing principle: Gold tests focus on analytical correctness and
-# metric stability — not hygiene (already enforced at Silver) and not source
-# conformance (already enforced at Bronze).
-#
-# What we assert here:
-#   - Dimension PKs are unique and not null
-#   - Fact → dimension referential integrity
-#   - Positive-value tests on financial measures that must never go negative
-#     (gross_margin is deliberately NOT tested as positive — negative margin is
-#      an analytically meaningful signal, not a defect)
-#   - A reconciliation singular test lives at tests/singular/
-# =============================================================================
+# Gold: stricter on analytics than Silver; hygiene lives below. Dims: PK checks;
+# fact: FKs to dims; non-negative $ where that matters; `gross_margin` can be
+# negative on purpose. Singular rec test in tests/singular/.
 
 models:
 
   # ---------------------------------------------------------------------------
   - name: dim_date
     description: >
-      Conformed date dimension. Grain: one row per calendar day, 1990–2000.
-      Generated via dbt_utils.date_spine.
+      One row per calendar day (1990–2000) from dbt_utils.date_spine.
     config:
       tags: ['gold', 'dimension', 'conformed']
     columns:
@@ -41,7 +28,7 @@ models:
 
   # ---------------------------------------------------------------------------
   - name: dim_geography
-    description: "Conformed nation + region dimension. Shared across ship and bill geography."
+    description: "Nation and region; same dim for ship-side and bill-side keys on the fact."
     config:
       tags: ['gold', 'dimension', 'conformed']
     columns:
@@ -173,7 +160,7 @@ models:
           - unique
           - not_null
 
-      # Dimension FKs — referential integrity is the analytical contract
+      # Dimension FKs
       - name: customer_key
         tests:
           - not_null
@@ -217,7 +204,7 @@ models:
                 to: ref('dim_date')
                 field: date_key
 
-      # Additive measures — must be positive
+      # Additive measures (tested non-negative)
       - name: quantity
         tests:
           - positive_value
@@ -233,13 +220,10 @@ models:
               arguments:
                 allow_zero: true
 
-      # gross_margin is deliberately NOT tested as positive — negative margin
-      # is analytically meaningful (customer is being sold to at a loss) and
-      # should show up in the dashboard, not fail the build.
+      # gross_margin: not in positive_value — loss-making lines are valid
 
     tests:
-      # Composite uniqueness at the grain — defense in depth alongside the
-      # surrogate unique test.
+      # Uniqueness at natural grain (also have surrogate key unique above)
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -254,8 +238,7 @@ models:
   # ---------------------------------------------------------------------------
   - name: rpt_customer_profitability_90d
     description: >
-      Consumption view. Customer-level rollup over the trailing 90 days of
-      fact data — the primary artifact Sarah would hit from Power BI.
+      View: customer totals over the last 90 days of fact data (typical dashboard grain).
     config:
       tags: ['gold', 'rpt', 'customer_profitability']
     columns:
@@ -267,8 +250,7 @@ models:
   # ---------------------------------------------------------------------------
   - name: rpt_segment_margin_concentration
     description: >
-      Consumption view. Market-segment Pareto lens — answers
-      "where does margin actually concentrate?"
+      View: segment-level margin rollup for concentration / Pareto-style charts.
     config:
       tags: ['gold', 'rpt', 'segment_concentration']
     columns:

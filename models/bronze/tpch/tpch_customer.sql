@@ -1,11 +1,6 @@
--- =============================================================================
--- tpch_customer  (bronze_tpch.tpch_customer)
--- =============================================================================
--- Source-faithful ingestion of TPC-H customer table.
--- Column names preserved as-is (C_*). No business logic. No type coercion.
--- Three metadata columns appended via add_ingestion_metadata() macro.
--- See ADR-05. Schema segmentation convention: ADR-11.
--- =============================================================================
+-- tpch_customer → bronze_tpch
+-- TPC-H `customer` with original column names. Extra columns: _ingested_at, _source_system, _batch_id
+-- (add_ingestion_metadata). ADR-05; schema layout ADR-11.
 
 {{
     config(

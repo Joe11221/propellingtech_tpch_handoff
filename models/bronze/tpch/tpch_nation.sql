@@ -1,8 +1,5 @@
--- =============================================================================
--- tpch_nation  (bronze_tpch.tpch_nation)
--- =============================================================================
--- Source-faithful ingestion of TPC-H nation reference table.
--- =============================================================================
+-- tpch_nation → bronze_tpch
+-- 25 nations; `n_regionkey` → region. Small ref table.
 
 {{
     config(

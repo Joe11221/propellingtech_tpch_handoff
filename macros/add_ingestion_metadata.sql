@@ -1,22 +1,14 @@
 {#
-    add_ingestion_metadata
-    ----------------------
-    Injects three metadata columns into every Bronze model so that
-    every row is traceable back to its load time, source system,
-    and dbt invocation.
+    add_ingestion_metadata — _ingested_at, _source_system, _batch_id (ADR-05).
 
-    See ADR-05 for the reasoning.
-
-    Usage (in a Bronze model):
+    Use after the source select list, with a comma before the macro call:
 
         select
             *,
             {{ add_ingestion_metadata() }}
         from {{ source('tpch_sf1', 'customer') }}
 
-    The trailing comma convention means this macro is always used
-    AFTER the source columns — so the macro emits columns WITHOUT
-    a leading comma (the caller provides it).
+    Macro output has no leading comma; caller supplies the comma after `*`.
 #}
 
 {% macro add_ingestion_metadata() -%}

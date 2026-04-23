@@ -1,29 +1,7 @@
--- =============================================================================
--- dim_customer
--- =============================================================================
--- SCD Type 2 customer dimension. One row per (customer_id, SCD version).
---
--- Keys:
---   customer_key    — surrogate, unique per VERSION. Use this as the FK from
---                     fct_sales_lineitem to get point-in-time correct
---                     attribution.
---   customer_id     — natural key, stable across versions.
---
--- SCD semantics:
---   Join fact.order_date between valid_from and coalesce(valid_to, '9999-12-31')
---   to resolve the customer version that was active when the order happened.
---   See ADR-04 for the reasoning.
---
--- Gold-specific derivations (not in Silver — see ADR-02):
---   customer_tier   — account_balance quartile bucketed to Strategic / Growth /
---                     Maintain / Watch. Computed over the CURRENT version only
---                     so tier assignments don't oscillate as history is observed.
---
--- Denormalization:
---   Nation + region pulled in for BI convenience. The same nation/region
---   facts live in dim_geography — duplication here is intentional: dim_customer
---   should be independently queryable without a geography join.
--- =============================================================================
+-- dim_customer — SCD2: one row per (customer_id, version). `customer_key` is the
+-- fact FK; join facts on order_date between valid_from/valid_to for correct segment.
+-- `customer_tier` is Gold-only (quartiles on current balance) — ADR-02, ADR-04.
+-- Nation/region repeated here and in dim_geography on purpose so this dim stands alone in reports.
 
 {{
     config(
