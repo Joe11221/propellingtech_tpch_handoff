@@ -72,12 +72,15 @@ models:
               arguments:
                 values: ['AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY']
       - name: customer_tier
-        description: "Gold-derived: quartile on current account_balance."
+        description: >
+          Gold-derived. 'Watch' for negative current balance; 'Strategic' /
+          'Growth' / 'Maintain' for positive balances bucketed by tercile(desc);
+          'Lapsed' when the customer has no current version at all.
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ['Strategic', 'Growth', 'Maintain', 'Watch']
+                values: ['Strategic', 'Growth', 'Maintain', 'Watch', 'Lapsed']
       - name: nation_id
         tests:
           - not_null
@@ -238,13 +241,24 @@ models:
   # ---------------------------------------------------------------------------
   - name: rpt_customer_profitability_90d
     description: >
-      View: customer totals over the last 90 days of fact data (typical dashboard grain).
+      View: one row per customer_id over the last 90 days of fact data.
+      Includes active customers (is_lapsed = false) and customers hard-deleted
+      after transacting in the window (is_lapsed = true, customer_tier = 'Lapsed').
+      Descriptive attributes come from the latest SCD2 version per customer.
     config:
       tags: ['gold', 'rpt', 'customer_profitability']
     columns:
       - name: customer_id
+        description: "Natural key. Unique by construction — grain is customer_id, not customer_key."
         tests:
           - unique
+          - not_null
+      - name: is_lapsed
+        description: >
+          true when the customer has no current SCD2 version (hard-deleted via
+          invalidate_hard_deletes). Descriptive attrs on this row come from
+          the most recent historical version and customer_tier = 'Lapsed'.
+        tests:
           - not_null
 
   # ---------------------------------------------------------------------------
