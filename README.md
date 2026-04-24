@@ -18,23 +18,23 @@ The analytical layer is aimed at **Commercial Finance**: which customers to inve
 ## Scope delivered
 
 
-| Layer / artifact                                                                          | Status   |
-| ----------------------------------------------------------------------------------------- | -------- |
-| [ADR.md](./ADR.md) — reasoning                                                            | Complete |
-| Project scaffolding (`dbt_project.yml`, packages, macros)                                 | Complete |
-| `generate_schema_name` override (ideally would be handled by CI/CD / Github Actions)      | Complete |
-| `add_ingestion_metadata` macro                                                            | Complete |
-| Bronze (8 models + sources YAML + schema YAML)                                            | Complete |
-| `snap_customer_scd2` (SCD Type 2 snapshot)                                                | Complete |
-| Silver (8 models + schema YAML + tests)                                                   | Complete |
-| Custom generic test `positive_value`                                                      | Complete |
-| Gold dimensions (`dim_customer`, `dim_supplier`, `dim_part`, `dim_geography`, `dim_date`) | Complete |
-| Gold fact `fct_sales_lineitem`                                                            | Complete |
-| Report views (`rpt_customer_profitability_90d`, `rpt_segment_margin_concentration`)       | Complete |
-| Singular test `margin_reconciliation`                                                     | Complete |
+| Layer / artifact                                                                          |
+| ----------------------------------------------------------------------------------------- |
+| [ADR.md](./ADR.md) — reasoning                                                            |
+| Project scaffolding (`dbt_project.yml`, packages, macros)                                 |
+| `generate_schema_name` override (ideally would be handled by CI/CD / Github Actions)      |
+| `add_ingestion_metadata` macro                                                            |
+| Bronze (8 models + sources YAML + schema YAML)                                            |
+| `snap_customer_scd2` (SCD Type 2 snapshot)                                                |
+| Silver (8 models + schema YAML + tests)                                                   |
+| Custom generic test `positive_value`                                                      |
+| Gold dimensions (`dim_customer`, `dim_supplier`, `dim_part`, `dim_geography`, `dim_date`) |
+| Gold fact `fct_sales_lineitem`                                                            |
+| Report views (`rpt_customer_profitability_90d`, `rpt_segment_margin_concentration`)       |
+| Singular test `margin_reconciliation`                                                     |
 
 
-Further hardening (CI, exposures, model contracts, source freshness) can be added as the engagement matures.
+Further hardening (CI, exposures, model contracts, source freshness) can be added in a real engagement.
 
 ---
 
@@ -48,7 +48,7 @@ propellingtech_tpch/
 ├── packages.yml
 ├── .gitignore
 ├── macros/
-│   ├── generate_schema_name.sql       # Honors +schema verbatim (no dev prefix)
+│   ├── generate_schema_name.sql       # Honors +schema verbatim (no dev prefix, would change for CI/CD engagements)
 │   └── add_ingestion_metadata.sql     # Bronze metadata columns
 ├── models/
 │   ├── bronze/                        # → bronze_tpch (ADR-11)
@@ -89,11 +89,11 @@ propellingtech_tpch/
 ├── snapshots/
 │   └── snap_customer_scd2.sql         # → silver_customer
 ├── tests/
-│   ├── generic/
-│   │   └── test_positive_value.sql
-│   └── singular/
-│       └── test_margin_reconciliation.sql
-└── seeds/                             # optional CSV seeds (none in repo today)
+   ├── generic/
+   │   └── test_positive_value.sql
+   └── singular/
+       └── test_margin_reconciliation.sql
+
 ```
 
 ---
