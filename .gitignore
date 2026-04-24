@@ -14,13 +14,6 @@ venv/
 .env
 *.env
 # profiles.yml
-# likeness.md
-# PLAN.md
-# Status.md
-
-# Personal study / working docs (do NOT ship with submission)
-
-savedchat.md
 
 # IDE
 .vscode/
