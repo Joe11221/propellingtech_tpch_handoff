@@ -33,6 +33,23 @@ The main consumer of the Gold layer is **Commercial Finance leadership** at a wh
 
 Gold is structured so those questions can be answered in standard BI tools (Power BI, Tableau, and similar).
 
+### What the Gold layer produces
+
+Gold delivers a **star schema** in `gold_profitability` plus two **report views** on top. Together they are the end product Finance consumes.
+
+| Object | Output / grain | What it achieves |
+| :--- | :--- | :--- |
+| `fct_sales_lineitem` | One row per order line, with customer, part, supplier, and ship/bill geography keys, order dates, and measures (quantity, extended price, discounts, **net_revenue** from Silver, **supply cost**, **gross_margin**, **margin_rate**) | Single source of truth for commercial events at the line grain so margin and discount behavior can be sliced by customer (as-of order date), product, supplier, geography, priority, and time—then rolled up without losing the ability to explain *why* a customer or segment looks profitable or weak. |
+| `dim_customer` | SCD2: one row per `customer_id` version; `customer_tier` (Strategic / Growth / Maintain / Watch / Lapsed) and **market segment** for attribution | Correctly ties revenue and margin to **the customer as they were when the order happened**, while still supporting today’s **investment lens** (tier) on the dimension for reporting. Watch and Lapsed make credit risk and churn visible without ad hoc rules in every dashboard. |
+| `dim_part` | One row per part: type, size, brand, container, **retail_price** (SCD1) | Product context for part-level margin and mix analysis so high-discount or low-margin patterns can be explained by what was sold, not just who bought it. |
+| `dim_supplier` | One row per supplier with nation and region on the row (SCD1) | Fewer joins in BI; supports supplier geography on the fact (ship side) and narrative around supply-side geography without a separate star. |
+| `dim_geography` | One row per nation with region (SCD1) | Conformed geography for both customer (bill) and supplier (ship) so **region and nation** rollups are consistent across entities. |
+| `dim_date` | One row per calendar day (1990–2000 spine), integer **date_key** and calendar attributes | Standard time intelligence: fiscal-friendly keys are already on the fact; the spine supports charts, **weekday** filters, and month/quarter analysis without every analyst rebuilding a calendar. |
+| `rpt_customer_profitability_90d` | View: one row per `customer_id` for the last **90 order days** in the fact (anchored to max `order_date`), with order/line counts, revenue, margin, and **margin_rate** / **discount_rate_effective** | Ready-made answer to who is most profitable in the **rolling 90 order-day** window, for commercial reviews, without re-implementing SCD2 aggregation or the window in each BI file. The `is_lapsed` flag marks churned or inactive customers without string-matching on tier. |
+| `rpt_segment_margin_concentration` | View: one row per (month, **market_segment**) with **revenue_share**, **margin_share**, and **margin_concentration_index** (margin share ÷ revenue share) | **Segment concentration** in one object: which segments over- or under-index on margin relative to their revenue share—directly supports portfolio and segment strategy questions. |
+
+**Net effect:** Finance gets both **a reusable analytic model** (star schema) for ad hoc exploration and **two opinionated report surfaces** (customer 90-day profitability and segment concentration) that encode the product’s key windows and KPIs, so the answers in the bullets above are one join or one dataset away, not a new SQL project each time.
+
 ---
 
 ## ADR-01: Why medallion (vs. a single layer)?

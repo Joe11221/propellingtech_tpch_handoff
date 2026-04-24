@@ -12,11 +12,6 @@ This repo implements a **Customer Profitability & Margin Analysis** data product
 
 The analytical layer is aimed at **Commercial Finance**: which customers to invest in, retain, or deprioritize, and how margin and revenue behave by segment, geography, and order attributes. Full rationale for Bronze / Silver / Gold, grain, SCD, testing, and materialization is in **[ADR.md](./ADR.md)**.
 
----
-
-## How this was built
-
-This project was built using **AI-augmented delivery**. All architectural decisions — documented in [ADR.md](./ADR.md) — were made by the author. An LLM translated those specifications into dbt SQL; every model was validated against the ADR, covered by **161** dbt tests (all passing on the author’s Snowflake target), and reviewed for consistency with the documented intent. That mirrors how the author would run a client engagement: human judgment at the architecture and validation layers, AI leverage at the execution layer.
 
 ---
 
@@ -158,6 +153,29 @@ create schema if not exists propellingtech_tpch.silver_geography;
 create schema if not exists propellingtech_tpch.gold_profitability;
 ```
 
+**dbt role, user, and TPC-H access** (run with `ACCOUNTADMIN` or a role that can create users and grant privileges). *Do not store real passwords in this repository; set `DBT_USER` authentication in the Snowflake UI or with `ALTER USER` after create if your account requires a password to be set separately.*
+
+```sql
+CREATE ROLE DBT_ROLE;
+GRANT USAGE ON WAREHOUSE PROPELLINGTECH_WH TO ROLE DBT_ROLE;
+GRANT ALL ON DATABASE PROPELLINGTECH_TPCH TO ROLE DBT_ROLE;
+GRANT ALL ON ALL SCHEMAS IN DATABASE PROPELLINGTECH_TPCH TO ROLE DBT_ROLE;
+GRANT ALL ON FUTURE SCHEMAS IN DATABASE PROPELLINGTECH_TPCH TO ROLE DBT_ROLE;
+
+GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE_SAMPLE_DATA TO ROLE DBT_ROLE;
+
+CREATE USER DBT_USER
+  DEFAULT_ROLE = DBT_ROLE
+  DEFAULT_WAREHOUSE = PROPELLINGTECH_WH
+  DEFAULT_NAMESPACE = PROPELLINGTECH_TPCH;
+
+GRANT ROLE DBT_ROLE TO USER JOEOGHALI;
+
+USE ROLE DBT_ROLE;
+USE WAREHOUSE PROPELLINGTECH_WH;
+SELECT COUNT(*) FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER;
+```
+
 ### 4. Connection and packages
 
 ```bash
@@ -208,6 +226,12 @@ Details are in [ADR.md](./ADR.md).
 | **ADR-11** | Schemas: `bronze_<source>`, `silver_<domain>`, `gold_<product>`.                                                                                   |
 | **ADR-12** | ID standardization / quarantine pattern documented; deferred while TPC-H is the only source.                                                       |
 
+
+---
+
+## How this was built
+
+This project was built using **AI-augmented delivery**. All architectural decisions — documented in [ADR.md](./ADR.md) — were made by the author. An LLM translated those specifications into dbt SQL; every model was validated against the ADR, covered by **161** dbt tests (all passing on the author’s Snowflake target), and reviewed for consistency with the documented intent. That mirrors how the author would run a client engagement: human judgment at the architecture and validation layers, AI leverage at the execution layer.
 
 ---
 
