@@ -1,20 +1,5 @@
--- =============================================================================
--- customer  (silver_customer.customer)
--- =============================================================================
--- Silver customer entity. Reads from the SCD2 snapshot, NOT directly from
--- bronze. This is what makes point-in-time customer attribution possible
--- downstream (see dim_customer in Gold).
---
--- Transformations applied here:
---   1. Clean column names (C_* → business-readable)
---   2. Explicit type declarations
---   3. String hygiene (trim)
---   4. Surface an is_current convenience flag from snapshot metadata
---   5. Retain SCD2 valid_from / valid_to for point-in-time lookups
---
--- See ADR-02 for the placement rubric, ADR-04 for the SCD strategy,
--- ADR-11 for schema segmentation (this lives in silver_customer).
--- =============================================================================
+-- silver_customer.customer — SCD2 from snap (not raw Bronze); valid_from/to
+-- and is_current for as-of joins into Gold dim_customer. ADR-02, ADR-04, ADR-11.
 
 {{
     config(

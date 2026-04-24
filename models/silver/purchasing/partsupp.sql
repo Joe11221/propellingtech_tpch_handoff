@@ -1,16 +1,5 @@
--- =============================================================================
--- partsupp  (silver_purchasing.partsupp)
--- =============================================================================
--- Silver partsupp entity. Clean names, enforced types.
---
--- This is the ONLY source of per-unit supply cost in TPC-H, so it is
--- essential to the margin calculation downstream:
---
---   gross_margin = net_revenue - (ps_supplycost * l_quantity)
---
--- The join in Gold is (part_id, supplier_id) from silver_sales.lineitem to
--- (part_id, supplier_id) here. See fct_sales_lineitem (Gold).
--- =============================================================================
+-- silver_purchasing.partsupp — part–supplier bridge; ps_supplycost is the only
+-- TPC-H unit cost (margin joins on part_id + supplier_id in Gold). ADR-06, ADR-11.
 
 {{
     config(

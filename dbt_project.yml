@@ -2,10 +2,8 @@ name: 'propellingtech_tpch'
 version: '1.0.0'
 config-version: 2
 
-# This profile should match the target in your ~/.dbt/profiles.yml
 profile: 'propellingtech_tpch'
 
-# Standard dbt folder layout
 model-paths:    ["models"]
 analysis-paths: ["analyses"]
 test-paths:     ["tests"]
@@ -17,24 +15,13 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
-# Project-level variables.
-# Overridable from the CLI with `--vars '{"source_system": "..."}'` if needed.
 vars:
   source_system: 'SNOWFLAKE_SAMPLE_DATA.TPCH_SF1'
 
-# ---------------------------------------------------------------------------
-# Model configuration — tags, schemas, and materializations applied by layer.
-# See ADR-09 for the materialization reasoning.
-# ---------------------------------------------------------------------------
+# Per-layer schema and materialization — ADR-09, ADR-11.
 models:
   propellingtech_tpch:
 
-    # -----------------------------------------------------------------------
-    # Bronze — one schema per source system (ADR-11).
-    # TPC-H is the only source here; when CRM / IQVIA / SAP sources are
-    # added, create models/bronze/<source>/ subfolders and add a sibling
-    # config block with +schema: bronze_<source>.
-    # -----------------------------------------------------------------------
     bronze:
       +materialized: table
       +tags: ['bronze', 'AD Group: Bronze User']
@@ -45,11 +32,6 @@ models:
         +schema: bronze_tpch
         +tags: ['bronze', 'tpch', 'AD Group: tpch_user']
 
-    # -----------------------------------------------------------------------
-    # Silver — domain-segmented schemas (ADR-11).
-    # Permissions are granted at the schema boundary; each business function
-    # owns a clean, minimal slice of the conformed layer.
-    # -----------------------------------------------------------------------
     silver:
       +materialized: table
       +tags: ['silver', 'AD Group: Silver User']
@@ -69,14 +51,9 @@ models:
         +schema: silver_geography
         +tags: ['silver', 'geography']
 
-    # -----------------------------------------------------------------------
-    # Gold — one schema per analytical product (ADR-11).
-    # Only product here is customer profitability → gold_profitability.
-    # A future "supplier risk" product would add a sibling gold_supplier_risk.
-    # -----------------------------------------------------------------------
     gold:
       +materialized: table
-      +tags: ['gold', 'AD Group: Gold User']    
+      +tags: ['gold', 'AD Group: Gold User']
       +meta:
         layer: 'gold'
         purpose: 'Star schema for finance analytics'
@@ -84,32 +61,12 @@ models:
         +schema: gold_profitability
         +tags: ['gold', 'profitability', 'AD Group: Profitability']
 
-# ---------------------------------------------------------------------------
-# Snapshots — SCD Type 2 for customer lives in silver_customer alongside the
-# domain's conformed entities. See ADR-04 and ADR-11.
-# ---------------------------------------------------------------------------
 snapshots:
   propellingtech_tpch:
     +target_schema: silver_customer
-    # `check` matches snap_customer_scd2 — TPC-H has no updated_at column,
-    # so timestamp strategy would have nothing to anchor on.
     +strategy: check
     +invalidate_hard_deletes: true
 
-# ---------------------------------------------------------------------------
-# Seeds — dim_date lives in gold_profitability since it's consumed directly
-# by the Commercial Finance BI product. If a conformed shared seed is later
-# needed across multiple gold products, introduce a gold_shared schema.
-# ---------------------------------------------------------------------------
-seeds:
-  propellingtech_tpch:
-    +schema: gold_profitability
-    +quote_columns: false
-
-# ---------------------------------------------------------------------------
-# Global test severity — warnings don't fail the build, errors do.
-# Individual tests can override via `severity: warn` in schema.yml.
-# ---------------------------------------------------------------------------
 tests:
   +store_failures: true
   +severity: error

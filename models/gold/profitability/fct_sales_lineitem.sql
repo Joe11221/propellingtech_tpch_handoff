@@ -11,9 +11,7 @@
     )
 }}
 
--- ---------------------------------------------------------------------------
--- Base: lineitem + order (to get customer_id and order_date for SCD2 lookup)
--- ---------------------------------------------------------------------------
+-- Base: lineitem + order (customer_id, order_date for SCD2).
 with lineitem as (
 
     select
@@ -52,14 +50,8 @@ orders as (
 
 ),
 
--- ---------------------------------------------------------------------------
--- SCD2-aware customer resolution
---
--- Join a lineitem's order_date between the customer version's valid_from
--- and valid_to. In TPC-H the snapshot will typically only have one version
--- per customer, so this resolves cleanly — but the join pattern is the
--- correct one for real SCD2 data and is what we'd demo live.
--- ---------------------------------------------------------------------------
+-- SCD2: customer_key where order_timestamp ∈ [valid_from, valid_to). SF1 usually
+-- has one version per customer; the join pattern is the real-world one.
 scd_resolved as (
 
     select
@@ -80,9 +72,7 @@ scd_resolved as (
 
 ),
 
--- ---------------------------------------------------------------------------
--- Supply cost: join (part_id, supplier_id) → supply_cost_per_unit
--- ---------------------------------------------------------------------------
+-- Supply cost from partsupp on (part_id, supplier_id).
 with_supply_cost as (
 
     select
@@ -95,9 +85,7 @@ with_supply_cost as (
 
 ),
 
-
--- Geography resolution — ship (supplier nation) and bill (customer nation)
-
+-- Ship geography = supplier’s nation; bill = customer’s nation → dim_geography.
 with_geography as (
 
     select
@@ -115,32 +103,26 @@ with_geography as (
 
 ),
 
--- ---------------------------------------------------------------------------
--- Final projection with Gold-computed measures
--- ---------------------------------------------------------------------------
+-- Final: surrogate key, additive $, rates, margin.
 final as (
 
     select
-        -- Primary surrogate — deterministic, one per lineitem grain row.
         {{ dbt_utils.generate_surrogate_key(['order_id', 'line_number']) }}
                                                             as sales_lineitem_key,
 
-        -- Dimension foreign keys
         customer_key,
         supplier_key,
         part_key,
         ship_geography_key,
         bill_geography_key,
 
-        -- Date keys (YYYYMMDD integer form — matches dim_date.date_key)
         cast(to_char(order_date,   'YYYYMM') as int)         as order_year_month_key,
         cast(to_char(order_date,   'YYYYMMDD') as int)      as order_date_key,
         cast(to_char(ship_date,    'YYYYMMDD') as int)      as ship_date_key,
         cast(to_char(commit_date,  'YYYYMMDD') as int)      as commit_date_key,
         cast(to_char(receipt_date, 'YYYYMMDD') as int)      as receipt_date_key,
 
-        -- Degenerate dimensions (order-level attributes with no need for their
-        -- own dim — stored inline per Kimball's degenerate-dim pattern)
+        -- Degenerate dims (order/line attrs — no separate dimension table).
         order_id,
         line_number,
         order_status_code,
@@ -151,25 +133,21 @@ final as (
         ship_mode,
         ship_instruction,
 
-        -- Raw dates (convenient for BI tools that prefer dates over surrogate keys)
         order_date,
         ship_date,
         commit_date,
         receipt_date,
 
-        -- Additive measures
         quantity,
         extended_price,
         discount_amount,
         tax_amount,
         net_revenue,
 
-        -- Gold-computed supply cost and margin
         (supply_cost_per_unit * quantity)::number(14,2)     as supply_cost,
         (net_revenue - (supply_cost_per_unit * quantity))::number(14,2)
                                                              as gross_margin,
 
-        -- Non-additive rates (use weighted averages in BI, never simple avg)
         discount_rate,
         tax_rate,
         case

@@ -1,129 +1,307 @@
 version: 2
 
-# Bronze (schema bronze_tpch): source shapes kept as-is, light tests, metadata from
-# add_ingestion_metadata(). Tables are tpch_* so extra sources can sit beside this one
-# (ADR-07, ADR-11). Generic test args use `arguments:` (dbt 1.10+).
+# Bronze → bronze_tpch. Source-shaped columns + add_ingestion_metadata(). ADR-07, ADR-11.
 
 models:
 
-  # ---------------------------------------------------------------------------
   - name: tpch_customer
-    description: "TPC-H `customer` as landed in Snowflake, plus _ingested_at, _source_system, _batch_id."
+    description: "TPC-H customer plus _ingested_at, _source_system, _batch_id."
     config:
       tags: ['bronze', 'customer']
     columns:
       - name: c_custkey
-        description: "Customer natural key. Unique by source contract."
+        description: "Customer natural key from source."
         tests:
           - unique
           - not_null
+      - name: c_name
+        description: "Customer name."
+      - name: c_address
+        description: "Street address."
+      - name: c_nationkey
+        description: "Nation FK."
+      - name: c_phone
+        description: "Phone (source format)."
+      - name: c_acctbal
+        description: "Account balance at snapshot."
       - name: c_mktsegment
-        description: "Market segment. Enumerated by source; SCD-tracked downstream."
+        description: "Market segment; SCD2 downstream."
+      - name: c_comment
+        description: "Free-text comment."
       - name: _ingested_at
-        description: "Timestamp at which this row was loaded into Bronze."
+        description: "Timestamp when this row was loaded into Bronze."
         tests:
           - not_null
       - name: _source_system
-        description: "Logical name of the source system."
+        description: "Logical source identifier (dbt var)."
         tests:
           - not_null
       - name: _batch_id
-        description: "dbt `invocation_id` for the run that wrote this row."
+        description: "dbt invocation_id for this load."
         tests:
           - not_null
 
-  # ---------------------------------------------------------------------------
   - name: tpch_orders
-    description: "TPC-H `orders` — one row per order; keys match lineitem and customer in Silver."
+    description: "TPC-H orders — one row per order."
     config:
       tags: ['bronze', 'orders']
     columns:
       - name: o_orderkey
-        description: "Order natural key. Unique by source contract."
+        description: "Order natural key."
         tests:
           - unique
           - not_null
       - name: o_custkey
-        description: "FK to tpch_customer.c_custkey."
+        description: "FK to tpch_customer."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('tpch_customer')
                 field: c_custkey
+      - name: o_orderstatus
+        description: "Status code (F/O/P)."
+      - name: o_totalprice
+        description: "Order total price."
+      - name: o_orderdate
+        description: "Order date."
+      - name: o_orderpriority
+        description: "Priority band (1-URGENT … 5-LOW)."
+      - name: o_clerk
+        description: "Clerk id."
+      - name: o_shippriority
+        description: "Ship priority integer."
+      - name: o_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Load timestamp."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Logical source identifier."
+        tests:
+          - not_null
+      - name: _batch_id
+        description: "dbt invocation_id."
+        tests:
+          - not_null
 
-  # ---------------------------------------------------------------------------
   - name: tpch_lineitem
-    description: "TPC-H `lineitem` (order, line) grain; ~6M rows at SF1. Main event-level fact upstream."
+    description: "TPC-H lineitem — (order, line) grain; ~6M rows at SF1."
     config:
       tags: ['bronze', 'lineitem', 'tier_1']
     columns:
       - name: l_orderkey
-        description: "FK to tpch_orders.o_orderkey."
+        description: "FK to tpch_orders."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('tpch_orders')
                 field: o_orderkey
+      - name: l_partkey
+        description: "FK to part."
+      - name: l_suppkey
+        description: "FK to supplier."
       - name: l_linenumber
-        description: "Line number within order. (l_orderkey, l_linenumber) is the natural composite key."
+        description: "Line within order; composite key with l_orderkey."
+        tests:
+          - not_null
+      - name: l_quantity
+        description: "Quantity ordered."
+      - name: l_extendedprice
+        description: "Extended price before discount."
+      - name: l_discount
+        description: "Discount rate (0–0.10 in TPC-H)."
+      - name: l_tax
+        description: "Tax rate."
+      - name: l_returnflag
+        description: "Return flag."
+      - name: l_linestatus
+        description: "Line status."
+      - name: l_shipdate
+        description: "Ship date."
+      - name: l_commitdate
+        description: "Commit date."
+      - name: l_receiptdate
+        description: "Receipt date."
+      - name: l_shipinstruct
+        description: "Shipping instructions."
+      - name: l_shipmode
+        description: "Ship mode."
+      - name: l_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Load timestamp."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Logical source identifier."
+        tests:
+          - not_null
+      - name: _batch_id
+        description: "dbt invocation_id."
         tests:
           - not_null
 
-  # ---------------------------------------------------------------------------
   - name: tpch_part
-    description: "TPC-H `part` — part master for purchasing / partsupp joins."
+    description: "TPC-H part master."
     config:
       tags: ['bronze', 'part']
     columns:
       - name: p_partkey
+        description: "Part natural key."
         tests:
           - unique
           - not_null
+      - name: p_name
+        description: "Part name."
+      - name: p_mfgr
+        description: "Manufacturer."
+      - name: p_brand
+        description: "Brand."
+      - name: p_type
+        description: "Part type."
+      - name: p_size
+        description: "Size."
+      - name: p_container
+        description: "Container code."
+      - name: p_retailprice
+        description: "Retail price."
+      - name: p_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Load timestamp."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Logical source identifier."
+        tests:
+          - not_null
+      - name: _batch_id
+        description: "dbt invocation_id."
+        tests:
+          - not_null
 
-  # ---------------------------------------------------------------------------
   - name: tpch_supplier
-    description: "TPC-H `supplier` with nation key; no extra transforms here."
+    description: "TPC-H supplier + nation key."
     config:
       tags: ['bronze', 'supplier']
     columns:
       - name: s_suppkey
+        description: "Supplier natural key."
         tests:
           - unique
           - not_null
+      - name: s_name
+        description: "Supplier name."
+      - name: s_address
+        description: "Address."
+      - name: s_nationkey
+        description: "Nation FK."
+      - name: s_phone
+        description: "Phone."
+      - name: s_acctbal
+        description: "Account balance."
+      - name: s_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Load timestamp."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Logical source identifier."
+        tests:
+          - not_null
+      - name: _batch_id
+        description: "dbt invocation_id."
+        tests:
+          - not_null
 
-  # ---------------------------------------------------------------------------
   - name: tpch_partsupp
-    description: "TPC-H `partsupp` — `ps_supplycost` is the only per-unit cost TPC-H gives you; needed for margin (ADR-06)."
+    description: "TPC-H partsupp; ps_supplycost is unit cost for margin (ADR-06)."
     config:
       tags: ['bronze', 'partsupp']
     columns:
       - name: ps_partkey
+        description: "Part FK."
         tests:
           - not_null
       - name: ps_suppkey
+        description: "Supplier FK."
+        tests:
+          - not_null
+      - name: ps_availqty
+        description: "Available quantity."
+      - name: ps_supplycost
+        description: "Supply cost per unit."
+      - name: ps_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Load timestamp."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Logical source identifier."
+        tests:
+          - not_null
+      - name: _batch_id
+        description: "dbt invocation_id."
         tests:
           - not_null
 
-  # ---------------------------------------------------------------------------
   - name: tpch_nation
-    description: "TPC-H `nation` reference; pairs with `region` for geography."
+    description: "TPC-H nation."
     config:
       tags: ['bronze', 'nation', 'reference']
     columns:
       - name: n_nationkey
+        description: "Nation natural key."
         tests:
           - unique
           - not_null
+      - name: n_name
+        description: "Nation name."
+      - name: n_regionkey
+        description: "Region FK."
+      - name: n_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Load timestamp."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Logical source identifier."
+        tests:
+          - not_null
+      - name: _batch_id
+        description: "dbt invocation_id."
+        tests:
+          - not_null
 
-  # ---------------------------------------------------------------------------
   - name: tpch_region
-    description: "TPC-H `region` reference, five rows at SF1."
+    description: "TPC-H region (5 rows at SF1)."
     config:
       tags: ['bronze', 'region', 'reference']
     columns:
       - name: r_regionkey
+        description: "Region natural key."
         tests:
           - unique
+          - not_null
+      - name: r_name
+        description: "Region name."
+      - name: r_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Load timestamp."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Logical source identifier."
+        tests:
+          - not_null
+      - name: _batch_id
+        description: "dbt invocation_id."
+        tests:
           - not_null

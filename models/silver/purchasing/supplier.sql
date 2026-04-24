@@ -1,11 +1,5 @@
--- =============================================================================
--- supplier  (silver_purchasing.supplier)
--- =============================================================================
--- Silver supplier entity. Clean names, enforced types. Nation denormalization
--- is deferred to Gold (dim_geography) because the same nation+region rollup
--- is reused across both customer-ship and supplier-ship geography views.
--- Centralizing it in Gold keeps the definition singular.
--- =============================================================================
+-- silver_purchasing.supplier — conformed supplier row; carries nation_id only.
+-- Shared nation→region logic lives once in Gold dim_geography. ADR-11.
 
 {{
     config(

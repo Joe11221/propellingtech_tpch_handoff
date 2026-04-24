@@ -1,10 +1,9 @@
 -- rpt_customer_profitability_90d — view: customer-level KPIs for the last 90
 -- order days in the fact (anchor = max order_date; static TPC-H, not wall-clock).
 --
--- Grain is one row per customer_id (natural key) — NOT per SCD2 version. This
--- is deliberate.
--- can see recent activity from customers we've since lost without
--- duplicating the active-customer grain.
+-- Grain is one row per customer_id (natural key) — NOT per SCD2 version, so we
+-- still see recent activity from customers who later lapsed without exploding
+-- row count across historical SCD versions for active customers.
 -- ADR-02 / ADR-04 on why tier + segment current-ness is a Gold concern;
 -- ADR-09 on the view materialization choice.
 

@@ -1,11 +1,4 @@
--- =============================================================================
--- nation  (silver_geography.nation)
--- =============================================================================
--- Silver nation reference. Clean names, enforced types.
--- Joined with region in Gold (dim_geography).
---
--- See ADR-11 — nation / region are the Geography/reference domain.
--- =============================================================================
+-- silver_geography.nation — nation + region_id; consumed by dim_geography in Gold. ADR-11.
 
 {{
     config(

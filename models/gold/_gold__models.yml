@@ -1,97 +1,139 @@
 version: 2
 
-# Gold: stricter on analytics than Silver; hygiene lives below. Dims: PK checks;
-# fact: FKs to dims; non-negative $ where that matters; `gross_margin` can be
-# negative on purpose. Singular rec test in tests/singular/.
+# Gold: PK/FK tests, $ hygiene where additive; gross_margin may be negative.
 
 models:
 
-  # ---------------------------------------------------------------------------
   - name: dim_date
-    description: >
-      One row per calendar day (1990–2000) from dbt_utils.date_spine.
+    description: "Calendar spine 1990–2000 via dbt_utils.date_spine."
     config:
       tags: ['gold', 'dimension', 'conformed']
     columns:
       - name: date_key
-        description: "YYYYMMDD integer surrogate. Primary key."
+        description: "YYYYMMDD integer surrogate; primary key."
         tests:
           - unique
           - not_null
       - name: date_value
+        description: "Calendar date."
         tests:
           - unique
           - not_null
       - name: year_number
+        description: "Calendar year."
         tests:
           - not_null
+      - name: quarter_number
+        description: "Calendar quarter."
+      - name: month_number
+        description: "Month of year."
+      - name: month_short_name
+        description: "Abbreviated month name."
+      - name: month_long_name
+        description: "Full month name."
+      - name: day_of_month
+        description: "Day of month."
+      - name: day_of_week
+        description: "Day of week index."
+      - name: day_short_name
+        description: "Abbreviated weekday."
+      - name: day_long_name
+        description: "Full weekday name."
+      - name: week_of_year
+        description: "Week of year."
+      - name: is_weekday
+        description: "False on weekend."
+      - name: year_month_key
+        description: "YYYYMM integer."
+      - name: year_quarter_key
+        description: "YYYYQ integer."
 
-  # ---------------------------------------------------------------------------
   - name: dim_geography
-    description: "Nation and region; same dim for ship-side and bill-side keys on the fact."
+    description: "Nation + region name; ship and bill FKs on the fact both use this dim."
     config:
       tags: ['gold', 'dimension', 'conformed']
     columns:
       - name: geography_key
+        description: "Surrogate key for nation row."
         tests:
           - unique
           - not_null
       - name: nation_id
+        description: "Nation natural key."
         tests:
           - unique
           - not_null
       - name: nation_name
+        description: "Nation name."
         tests:
           - not_null
       - name: region_id
+        description: "Region natural key."
         tests:
           - not_null
+      - name: region_name
+        description: "Region name."
 
-  # ---------------------------------------------------------------------------
   - name: dim_customer
-    description: >
-      SCD Type 2 customer dimension. customer_key is unique per VERSION;
-      customer_id is the stable natural key. Use valid_from/valid_to for
-      point-in-time joins from the fact table.
+    description: "SCD2 customer; join facts on order_date between valid_from and valid_to."
     config:
       tags: ['gold', 'dimension', 'scd2', 'customer']
     columns:
       - name: customer_key
-        description: "Surrogate key per SCD2 version. Primary key."
+        description: "Surrogate per SCD version."
         tests:
           - unique
           - not_null
       - name: customer_id
-        description: "Natural key. NOT unique across versions."
+        description: "Natural key; repeats across versions."
         tests:
           - not_null
+      - name: customer_name
+        description: "Display name."
+      - name: customer_address
+        description: "Street address."
+      - name: customer_phone
+        description: "Phone."
+      - name: customer_comment
+        description: "Free-text comment."
+      - name: account_balance
+        description: "Balance for this SCD version."
       - name: market_segment
+        description: "Segment; SCD-tracked."
         tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ['AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY']
-      - name: customer_tier
-        description: >
-          Gold-derived. 'Watch' for negative current balance; 'Strategic' /
-          'Growth' / 'Maintain' for positive balances bucketed by tercile(desc);
-          'Lapsed' when the customer has no current version at all.
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: ['Strategic', 'Growth', 'Maintain', 'Watch', 'Lapsed']
       - name: nation_id
+        description: "Nation id (denormalized)."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('dim_geography')
                 field: nation_id
-      - name: valid_from
+      - name: nation_name
+        description: "Nation name on the row."
+      - name: region_id
+        description: "Region id on the row."
+      - name: region_name
+        description: "Region name on the row."
+      - name: customer_tier
+        description: "Watch / Strategic / Growth / Maintain / Lapsed (Gold rule in model SQL)."
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values: ['Strategic', 'Growth', 'Maintain', 'Watch', 'Lapsed']
+      - name: valid_from
+        description: "Version effective start."
+        tests:
+          - not_null
+      - name: valid_to
+        description: "Version effective end (sentinel date when current)."
       - name: is_current
+        description: "True for open SCD version."
         tests:
           - not_null
 
@@ -104,67 +146,91 @@ models:
           config:
             where: "is_current = true"
 
-  # ---------------------------------------------------------------------------
   - name: dim_supplier
-    description: "SCD Type 1 supplier dimension. Denormalized with nation + region."
+    description: "SCD1 supplier with nation and region on the row."
     config:
       tags: ['gold', 'dimension', 'scd1', 'supplier']
     columns:
       - name: supplier_key
+        description: "Surrogate key."
         tests:
           - unique
           - not_null
       - name: supplier_id
+        description: "Supplier natural key."
         tests:
           - unique
           - not_null
+      - name: supplier_name
+        description: "Supplier name."
+      - name: supplier_address
+        description: "Address."
+      - name: supplier_phone
+        description: "Phone."
+      - name: account_balance
+        description: "Account balance."
       - name: nation_id
+        description: "Nation id."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('dim_geography')
                 field: nation_id
+      - name: nation_name
+        description: "Nation name."
+      - name: region_id
+        description: "Region id."
+      - name: region_name
+        description: "Region name."
 
-  # ---------------------------------------------------------------------------
   - name: dim_part
-    description: "SCD Type 1 part dimension."
+    description: "SCD1 part attributes for the line grain."
     config:
       tags: ['gold', 'dimension', 'scd1', 'part']
     columns:
       - name: part_key
+        description: "Surrogate key."
         tests:
           - unique
           - not_null
       - name: part_id
+        description: "Part natural key."
         tests:
           - unique
           - not_null
+      - name: part_name
+        description: "Part name."
+      - name: manufacturer
+        description: "Manufacturer."
       - name: brand
+        description: "Brand."
         tests:
           - not_null
+      - name: part_type
+        description: "Part type."
+      - name: part_size
+        description: "Size."
+      - name: container
+        description: "Container code."
       - name: retail_price
+        description: "Retail price."
         tests:
           - positive_value
 
-  # ---------------------------------------------------------------------------
   - name: fct_sales_lineitem
-    description: >
-      Primary fact — one row per order lineitem. All measures additive except
-      discount_rate, tax_rate, and margin_rate (use weighted averages in BI).
-      gross_margin is Gold-computed per ADR-02; net_revenue is carried through
-      from Silver.
+    description: "Line-level fact; gross_margin in Gold, net_revenue from Silver (ADR-02). Rates are non-additive."
     config:
       tags: ['gold', 'fact', 'tier_1']
     columns:
       - name: sales_lineitem_key
-        description: "Surrogate PK. Deterministic hash of (order_id, line_number)."
+        description: "Deterministic surrogate from (order_id, line_number)."
         tests:
           - unique
           - not_null
 
-      # Dimension FKs
       - name: customer_key
+        description: "FK to dim_customer."
         tests:
           - not_null
           - relationships:
@@ -172,6 +238,7 @@ models:
                 to: ref('dim_customer')
                 field: customer_key
       - name: supplier_key
+        description: "FK to dim_supplier."
         tests:
           - not_null
           - relationships:
@@ -179,6 +246,7 @@ models:
                 to: ref('dim_supplier')
                 field: supplier_key
       - name: part_key
+        description: "FK to dim_part."
         tests:
           - not_null
           - relationships:
@@ -186,6 +254,7 @@ models:
                 to: ref('dim_part')
                 field: part_key
       - name: ship_geography_key
+        description: "Ship-side geography (supplier nation)."
         tests:
           - not_null
           - relationships:
@@ -193,91 +262,174 @@ models:
                 to: ref('dim_geography')
                 field: geography_key
       - name: bill_geography_key
+        description: "Bill-side geography (customer nation)."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('dim_geography')
                 field: geography_key
+      - name: order_year_month_key
+        description: "YYYYMM; aligns with dim_date month grain."
+        tests:
+          - not_null
       - name: order_date_key
+        description: "FK to dim_date for order_date."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('dim_date')
                 field: date_key
-      - name: order_year_month_key
-        description: "Order calendar month in YYYYMM integer form; aligns with dim_date.year_month_key."
-        tests:
-          - not_null
-
-      # Additive measures (tested non-negative)
+      - name: ship_date_key
+        description: "Ship date as YYYYMMDD."
+      - name: commit_date_key
+        description: "Commit date as YYYYMMDD."
+      - name: receipt_date_key
+        description: "Receipt date as YYYYMMDD."
+      - name: order_id
+        description: "Degenerate: order natural key."
+      - name: line_number
+        description: "Degenerate: line within order."
+      - name: order_status_code
+        description: "Order status code."
+      - name: order_priority
+        description: "Order priority."
+      - name: ship_priority
+        description: "Ship priority."
+      - name: return_flag
+        description: "Line return flag."
+      - name: line_status
+        description: "Line status."
+      - name: ship_mode
+        description: "Ship mode."
+      - name: ship_instruction
+        description: "Ship instructions."
+      - name: order_date
+        description: "Order date (date type)."
+      - name: ship_date
+        description: "Ship date."
+      - name: commit_date
+        description: "Commit date."
+      - name: receipt_date
+        description: "Receipt date."
       - name: quantity
+        description: "Units sold."
         tests:
           - positive_value
       - name: extended_price
+        description: "Pre-discount extended price."
         tests:
           - positive_value
+      - name: discount_amount
+        description: "Discount dollars."
+      - name: tax_amount
+        description: "Tax dollars."
       - name: net_revenue
+        description: "Revenue after discount (from Silver)."
         tests:
           - positive_value
       - name: supply_cost
+        description: "Unit supply cost × quantity."
         tests:
           - positive_value:
               arguments:
                 allow_zero: true
-
-      # gross_margin: not in positive_value — loss-making lines are valid
+      - name: gross_margin
+        description: "net_revenue − supply_cost; may be negative."
+      - name: discount_rate
+        description: "Line discount rate; use weighted avg in BI."
+      - name: tax_rate
+        description: "Line tax rate; use weighted avg in BI."
+      - name: margin_rate
+        description: "gross_margin / net_revenue when net_revenue > 0."
+      # gross_margin intentionally untested for positive_value (loss lines allowed)
 
     tests:
-      # Uniqueness at natural grain (also have surrogate key unique above)
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
               - order_id
               - line_number
 
-      # Business rule: gross_margin = net_revenue - supply_cost, within tolerance
       - dbt_utils.expression_is_true:
           arguments:
             expression: "abs(gross_margin - (net_revenue - supply_cost)) < 0.01"
 
-  # ---------------------------------------------------------------------------
   - name: rpt_customer_profitability_90d
-    description: >
-      View: one row per customer_id over the last 90 days of fact data.
-      Includes active customers (is_lapsed = false) and customers hard-deleted
-      after transacting in the window (is_lapsed = true, customer_tier = 'Lapsed').
-      Descriptive attributes come from the latest SCD2 version per customer.
+    description: "Rolling 90 order-days per customer_id; includes lapsed rows where applicable."
     config:
       tags: ['gold', 'rpt', 'customer_profitability']
     columns:
       - name: customer_id
-        description: "Natural key. Unique by construction — grain is customer_id, not customer_key."
+        description: "Grain key (natural id, not customer_key)."
         tests:
           - unique
           - not_null
+      - name: customer_name
+        description: "From latest SCD row per customer_id."
+      - name: market_segment
+        description: "Segment from latest SCD row."
+      - name: customer_tier
+        description: "Tier from latest SCD row."
+      - name: nation_name
+        description: "Nation from latest SCD row."
+      - name: region_name
+        description: "Region from latest SCD row."
       - name: is_lapsed
-        description: >
-          true when the customer has no current SCD2 version (hard-deleted via
-          invalidate_hard_deletes). Descriptive attrs on this row come from
-          the most recent historical version and customer_tier = 'Lapsed'.
+        description: "True when no current SCD row (hard-delete path)."
         tests:
           - not_null
+      - name: order_count
+        description: "Distinct orders in window."
+      - name: lineitem_count
+        description: "Line count in window."
+      - name: total_quantity
+        description: "Sum quantity in window."
+      - name: total_gross_revenue
+        description: "Sum extended_price in window."
+      - name: total_discount
+        description: "Sum discount_amount in window."
+      - name: total_net_revenue
+        description: "Sum net_revenue in window."
+      - name: total_supply_cost
+        description: "Sum supply_cost in window."
+      - name: total_gross_margin
+        description: "Sum gross_margin in window."
+      - name: margin_rate
+        description: "total_gross_margin / total_net_revenue when revenue > 0."
+      - name: discount_rate_effective
+        description: "total_discount / total_gross_revenue when list revenue > 0."
 
-  # ---------------------------------------------------------------------------
   - name: rpt_segment_margin_concentration
-    description: >
-      View: segment-level margin rollup by order month for concentration / Pareto-style charts.
+    description: "Segment × order month for concentration charts."
     config:
       tags: ['gold', 'rpt', 'segment_concentration']
     columns:
       - name: order_year_month_key
+        description: "Order month (YYYYMM)."
         tests:
           - not_null
       - name: market_segment
+        description: "Customer market segment."
         tests:
           - not_null
+      - name: total_gross_revenue
+        description: "Sum extended_price for segment-month."
+      - name: total_discount
+        description: "Sum discount for segment-month."
+      - name: total_net_revenue
+        description: "Sum net revenue for segment-month."
+      - name: total_gross_margin
+        description: "Sum gross margin for segment-month."
+      - name: margin_rate
+        description: "Segment margin / segment net revenue."
+      - name: revenue_share
+        description: "Segment share of month net revenue."
+      - name: margin_share
+        description: "Segment share of month gross margin."
+      - name: margin_concentration_index
+        description: "margin_share / revenue_share; >1 means margin-heavy vs revenue share."
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

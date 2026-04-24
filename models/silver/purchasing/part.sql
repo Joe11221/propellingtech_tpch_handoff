@@ -1,11 +1,5 @@
--- =============================================================================
--- part  (silver_purchasing.part)
--- =============================================================================
--- Silver part entity. Clean names, enforced types, standardized string casing
--- on descriptive fields (brand, type) so downstream groupings are consistent.
---
--- See ADR-11 — part / supplier / partsupp together form the Purchasing domain.
--- =============================================================================
+-- silver_purchasing.part — conformed part master; trimmed brand/type so BI
+-- rollups don’t split on stray whitespace. ADR-11.
 
 {{
     config(

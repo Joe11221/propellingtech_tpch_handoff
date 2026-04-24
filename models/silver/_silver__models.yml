@@ -1,37 +1,22 @@
 version: 2
 
-# Silver: one schema per area — customer, sales, purchasing, geography (ADR-11).
-# Models use plain names (`lineitem`, `customer`); the schema name carries the
-# layer. Heavier tests than Bronze. Generic test args: `arguments:` (dbt 1.10+).
+# Silver: domain schemas (ADR-11). Stronger tests than Bronze.
 
 models:
 
-  # ---------------------------------------------------------------------------
-  # silver_customer
-  # ---------------------------------------------------------------------------
   - name: customer
-    description: >
-      `silver_customer.customer` from `snap_customer_scd2` — SCD2 rows with
-      valid_from / valid_to. `is_current = true` for current row; as-of joins use the date range.
+    description: "SCD2 customer from snap_customer_scd2; valid_from/valid_to, is_current."
     config:
       tags: ['silver', 'customer']
     columns:
       - name: customer_id
-        description: "Natural key. NOT unique across SCD versions — unique within (customer_id, is_current=true)."
+        description: "Natural key; one current row per id when is_current = true."
         tests:
           - not_null
-      - name: scd_version_id
-        description: "Surrogate SCD version key. Unique per row."
-        tests:
-          - unique
-          - not_null
-      - name: market_segment
-        description: "Customer market segment. SCD-tracked."
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: ['AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY']
+      - name: customer_name
+        description: "Display name."
+      - name: customer_address
+        description: "Street address."
       - name: nation_id
         description: "FK to silver_geography.nation."
         tests:
@@ -40,16 +25,36 @@ models:
               arguments:
                 to: ref('nation')
                 field: nation_id
-      - name: valid_from
+      - name: customer_phone
+        description: "Phone."
+      - name: account_balance
+        description: "Account balance (SCD-tracked)."
+      - name: market_segment
+        description: "Market segment; SCD-tracked."
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values: ['AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY']
+      - name: customer_comment
+        description: "Free-text comment."
+      - name: scd_version_id
+        description: "Surrogate SCD version id from snapshot."
+        tests:
+          - unique
+          - not_null
+      - name: valid_from
+        description: "Version effective start (backdated for first version per customer)."
+        tests:
+          - not_null
+      - name: valid_to
+        description: "Version effective end; null when current."
       - name: is_current
+        description: "True when this row is the open SCD version."
         tests:
           - not_null
 
     tests:
-      # Unique on (customer_id, is_current=true) — there must be exactly
-      # one current version of each customer.
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -58,25 +63,20 @@ models:
           config:
             where: "is_current = true"
 
-  # ---------------------------------------------------------------------------
-  # silver_sales
-  # ---------------------------------------------------------------------------
   - name: orders
-    description: "silver_sales.orders — types cleaned up, date parts added for join keys."
+    description: "Order header: typed columns, calendar parts; status codes as in source."
     config:
       tags: ['silver', 'sales', 'orders']
     columns:
       - name: order_id
-        description: "Natural key."
+        description: "Order natural key."
         tests:
           - unique
           - not_null
       - name: customer_id
-        description: "FK to silver_customer.customer."
+        description: "FK to silver_customer.customer (current row for relationship test)."
         tests:
           - not_null
-          # Relationship is to the CURRENT version of customer.
-          # Historical integrity is preserved through the SCD2 valid_from/to join.
           - relationships:
               arguments:
                 to: ref('customer')
@@ -84,30 +84,51 @@ models:
               config:
                 where: "customer_id is not null"
       - name: order_status_code
+        description: "TPC-H status single-letter code."
         tests:
           - accepted_values:
               arguments:
                 values: ['F', 'O', 'P']
       - name: order_total_price
+        description: "Order total price."
         tests:
           - positive_value
       - name: order_date
+        description: "Order date."
         tests:
           - not_null
       - name: order_priority
+        description: "Priority band string."
         tests:
           - accepted_values:
               arguments:
                 values: ['1-URGENT', '2-HIGH', '3-MEDIUM', '4-NOT SPECIFIED', '5-LOW']
+      - name: clerk_id
+        description: "Clerk identifier."
+      - name: ship_priority
+        description: "Ship priority integer."
+      - name: order_comment
+        description: "Free-text comment."
+      - name: order_year
+        description: "Calendar year from order_date."
+      - name: order_month
+        description: "Calendar month from order_date."
+      - name: order_quarter
+        description: "Calendar quarter from order_date."
+      - name: _ingested_at
+        description: "Bronze load timestamp (carried through)."
+      - name: _source_system
+        description: "Bronze source identifier."
+      - name: _batch_id
+        description: "Bronze batch / invocation id."
 
   - name: lineitem
-    description: >
-      `silver_sales.lineitem` at (order_id, line_number) grain. `net_revenue`
-      and discount/tax $ computed here; feeds `fct_sales_lineitem`.
+    description: "(order_id, line_number) grain; net_revenue and $ discount/tax here."
     config:
       tags: ['silver', 'sales', 'lineitem', 'tier_1']
     columns:
       - name: order_id
+        description: "FK to orders."
         tests:
           - not_null
           - relationships:
@@ -115,9 +136,11 @@ models:
                 to: ref('orders')
                 field: order_id
       - name: line_number
+        description: "Line within order."
         tests:
           - not_null
       - name: part_id
+        description: "FK to part."
         tests:
           - not_null
           - relationships:
@@ -125,6 +148,7 @@ models:
                 to: ref('part')
                 field: part_id
       - name: supplier_id
+        description: "FK to supplier."
         tests:
           - not_null
           - relationships:
@@ -132,104 +156,157 @@ models:
                 to: ref('supplier')
                 field: supplier_id
       - name: quantity
-        description: "Quantity ordered. Must be positive."
+        description: "Quantity ordered; must be positive."
         tests:
           - positive_value
       - name: extended_price
-        description: "Pre-discount line revenue. Must be positive."
+        description: "Pre-discount line revenue; must be positive."
         tests:
           - positive_value
       - name: discount_rate
-        description: "Discount rate. TPC-H contract: [0, 0.10]."
+        description: "0–1; TPC-H caps discount at 0.10."
         tests:
           - not_null
           - dbt_utils.expression_is_true:
               arguments:
                 expression: "between 0 and 1"
       - name: tax_rate
-        description: "Tax rate. TPC-H contract: [0, 0.08]."
+        description: "0–1; TPC-H caps tax at 0.08."
         tests:
           - not_null
           - dbt_utils.expression_is_true:
               arguments:
                 expression: "between 0 and 1"
+      - name: return_flag
+        description: "Return flag from source."
+      - name: line_status
+        description: "Line status from source."
+      - name: ship_date
+        description: "Ship date."
+      - name: commit_date
+        description: "Commit date."
+      - name: receipt_date
+        description: "Receipt date."
+      - name: ship_instruction
+        description: "Shipping instructions."
+      - name: ship_mode
+        description: "Ship mode."
+      - name: line_comment
+        description: "Free-text comment."
       - name: net_revenue
-        description: "Silver-computed: extended_price - discount_amount (after each rounded to cents) so the two sum to list."
+        description: "extended_price × (1 − discount_rate), rounded (Silver revenue rule)."
         tests:
           - positive_value
       - name: discount_amount
-        description: "Silver-computed: extended_price * discount_rate."
+        description: "extended_price × discount_rate."
         tests:
           - positive_value:
               arguments:
                 allow_zero: true
       - name: tax_amount
-        description: "Silver-computed: extended_price * tax_rate."
+        description: "extended_price × tax_rate."
         tests:
           - positive_value:
               arguments:
                 allow_zero: true
+      - name: _ingested_at
+        description: "Bronze load timestamp."
+      - name: _source_system
+        description: "Bronze source identifier."
+      - name: _batch_id
+        description: "Bronze batch / invocation id."
 
     tests:
-      # Composite uniqueness at the lineitem grain
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
               - order_id
               - line_number
-      # Business rule: net_revenue must equal extended_price - discount_amount
-      # within floating-point tolerance. Catches computation drift if the
-      # formula ever gets re-implemented inconsistently.
       - dbt_utils.expression_is_true:
           arguments:
             expression: "abs(net_revenue - (extended_price - discount_amount)) < 0.02"
           config:
             severity: warn
 
-  # ---------------------------------------------------------------------------
-  # silver_purchasing
-  # ---------------------------------------------------------------------------
   - name: part
-    description: "silver_purchasing.part — business-friendly names, brand string normalized."
+    description: "Conformed part; trimmed brand."
     config:
       tags: ['silver', 'purchasing', 'part']
     columns:
       - name: part_id
+        description: "Part natural key."
         tests:
           - unique
           - not_null
+      - name: part_name
+        description: "Part name."
+      - name: manufacturer
+        description: "Manufacturer code."
       - name: brand
+        description: "Brand (uppercased/trimmed)."
         tests:
           - not_null
+      - name: part_type
+        description: "Part type."
+      - name: part_size
+        description: "Size integer."
+      - name: container
+        description: "Container code."
       - name: retail_price
+        description: "List / retail price."
         tests:
           - positive_value
+      - name: part_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Bronze load timestamp."
+      - name: _source_system
+        description: "Bronze source identifier."
+      - name: _batch_id
+        description: "Bronze batch / invocation id."
 
   - name: supplier
-    description: "silver_purchasing.supplier; nation_id kept for dim_supplier in Gold."
+    description: "Conformed supplier; nation_id for Gold dim."
     config:
       tags: ['silver', 'purchasing', 'supplier']
     columns:
       - name: supplier_id
+        description: "Supplier natural key."
         tests:
           - unique
           - not_null
+      - name: supplier_name
+        description: "Supplier name."
+      - name: supplier_address
+        description: "Address."
       - name: nation_id
+        description: "FK to nation."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('nation')
                 field: nation_id
+      - name: supplier_phone
+        description: "Phone."
+      - name: account_balance
+        description: "Account balance."
+      - name: supplier_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Bronze load timestamp."
+      - name: _source_system
+        description: "Bronze source identifier."
+      - name: _batch_id
+        description: "Bronze batch / invocation id."
 
   - name: partsupp
-    description: >
-      `silver_purchasing.partsupp`. `supply_cost_per_unit` is the per-unit
-      cost TPC-H gives you, used in Gold for margin.
+    description: "(part_id, supplier_id) bridge; supply_cost_per_unit for Gold margin."
     config:
       tags: ['silver', 'purchasing', 'partsupp']
     columns:
       - name: part_id
+        description: "FK to part."
         tests:
           - not_null
           - relationships:
@@ -237,17 +314,29 @@ models:
                 to: ref('part')
                 field: part_id
       - name: supplier_id
+        description: "FK to supplier."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('supplier')
                 field: supplier_id
+      - name: available_quantity
+        description: "Available quantity at part-supplier."
       - name: supply_cost_per_unit
+        description: "TPC-H unit supply cost."
         tests:
           - positive_value:
               arguments:
                 allow_zero: true
+      - name: partsupp_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Bronze load timestamp."
+      - name: _source_system
+        description: "Bronze source identifier."
+      - name: _batch_id
+        description: "Bronze batch / invocation id."
 
     tests:
       - dbt_utils.unique_combination_of_columns:
@@ -256,40 +345,58 @@ models:
               - part_id
               - supplier_id
 
-  # ---------------------------------------------------------------------------
-  # silver_geography
-  # ---------------------------------------------------------------------------
   - name: nation
-    description: "silver_geography.nation — small reference table, FK to region."
+    description: "Nation; FK to region."
     config:
       tags: ['silver', 'geography', 'nation', 'reference']
     columns:
       - name: nation_id
+        description: "Nation natural key."
         tests:
           - unique
           - not_null
       - name: nation_name
+        description: "Nation name."
         tests:
           - unique
           - not_null
       - name: region_id
+        description: "FK to region."
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('region')
                 field: region_id
+      - name: nation_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Bronze load timestamp."
+      - name: _source_system
+        description: "Bronze source identifier."
+      - name: _batch_id
+        description: "Bronze batch / invocation id."
 
   - name: region
-    description: "silver_geography.region — five regions at SF1."
+    description: "Region — five values at SF1."
     config:
       tags: ['silver', 'geography', 'region', 'reference']
     columns:
       - name: region_id
+        description: "Region natural key."
         tests:
           - unique
           - not_null
       - name: region_name
+        description: "Region name."
         tests:
           - unique
           - not_null
+      - name: region_comment
+        description: "Free-text comment."
+      - name: _ingested_at
+        description: "Bronze load timestamp."
+      - name: _source_system
+        description: "Bronze source identifier."
+      - name: _batch_id
+        description: "Bronze batch / invocation id."

@@ -1,8 +1,4 @@
--- =============================================================================
--- region  (silver_geography.region)
--- =============================================================================
--- Silver region reference. Clean names, enforced types.
--- =============================================================================
+-- silver_geography.region — top of geo hierarchy under nation (SF1: five regions). ADR-11.
 
 {{
     config(
